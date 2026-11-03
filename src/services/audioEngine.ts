@@ -175,6 +175,14 @@ class AudioEngine {
     }
   }
 
+  public togglePlay() {
+    this.toggle();
+  }
+
+  public prevTrack() {
+    this.previousTrack();
+  }
+
   public nextTrack() {
     this.currentTrackIndex = (this.currentTrackIndex + 1) % PLAYLIST.length;
     this.currentTime = 0;

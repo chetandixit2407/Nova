@@ -36,7 +36,12 @@ export const NotchSettingsTab: React.FC = () => {
     { id: 'compact_dot', name: 'OLED Minimal', desc: 'Ultra compact pure black minimal profile' }
   ];
 
-  const themes: { id: NotchTheme; label: string; color: string }[] = [
+  const themes: { id: NotchTheme; label: string; color: string; isPro?: boolean }[] = [
+    { id: 'liquid-titanium', label: 'Liquid Titanium', color: '#94a3b8', isPro: true },
+    { id: 'supernova-horizon', label: 'Supernova Horizon', color: '#f59e0b', isPro: true },
+    { id: 'cyber-matrix-3d', label: 'Cyber Matrix 3D', color: '#10b981', isPro: true },
+    { id: 'celestial-orrery', label: 'Celestial Orrery', color: '#6366f1', isPro: true },
+    { id: 'prism-core', label: 'Prism Core', color: '#ec4899', isPro: true },
     { id: 'midnight', label: 'Midnight Obsidian', color: '#090d16' },
     { id: 'windows-mica', label: 'Windows Mica', color: '#181b2a' },
     { id: 'cyber-glow', label: 'Cyber Glow', color: '#051b14' },
@@ -80,11 +85,13 @@ export const NotchSettingsTab: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Themes */}
         <div className="bg-white/5 border border-white/10 rounded-xl p-3">
-          <label className="text-xs font-semibold text-slate-200 block mb-2 flex items-center gap-1.5">
-            <Palette className="w-3.5 h-3.5 text-indigo-400" />
-            Color Palette & Glass Base
+          <label className="text-xs font-semibold text-slate-200 block mb-2 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <Palette className="w-3.5 h-3.5 text-indigo-400" />
+              Appearance Themes (5 Pro Effects)
+            </span>
           </label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
             {themes.map((t) => (
               <button
                 key={t.id}
@@ -99,7 +106,10 @@ export const NotchSettingsTab: React.FC = () => {
                   className="w-3 h-3 rounded-full border border-white/20 shrink-0"
                   style={{ backgroundColor: t.color }}
                 />
-                <span className="truncate text-[11px] font-medium">{t.label}</span>
+                <span className="truncate text-[11px] font-medium">
+                  {t.label}
+                  {t.isPro && <span className="ml-1 text-[9px] text-sky-400 font-mono">PRO</span>}
+                </span>
               </button>
             ))}
           </div>
@@ -139,23 +149,52 @@ export const NotchSettingsTab: React.FC = () => {
         </div>
       </div>
 
-      {/* Geometry Sliders */}
+      {/* Feature 8: Flexible Notch Placement */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
+        <div className="text-xs font-semibold text-slate-200 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Monitor className="w-3.5 h-3.5 text-sky-400" />
+            Flexible Notch Placement (Edge & Corners)
+          </span>
+          <span className="text-[10px] text-sky-400 font-mono uppercase">Feature 8</span>
+        </div>
+        <div className="grid grid-cols-5 gap-2">
+          {(['top-center', 'top-left', 'top-right', 'left', 'right'] as const).map((placement) => (
+            <button
+              key={placement}
+              onClick={() => updateConfig({ placement })}
+              className={`py-2 px-2 rounded-lg border text-center text-xs transition capitalize ${
+                config.placement === placement
+                  ? 'bg-sky-500/20 border-sky-400 text-white font-semibold'
+                  : 'bg-white/[0.02] border-white/5 text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              {placement.replace('-', ' ')}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Feature 9: Custom Notch Dimensions (Length & Thickness 28-72px) */}
       <div className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-3">
-        <div className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-          <Sliders className="w-3.5 h-3.5 text-sky-400" />
-          <span>Notch Geometry & Layout</span>
+        <div className="text-xs font-semibold text-slate-200 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Sliders className="w-3.5 h-3.5 text-sky-400" />
+            Custom Notch Dimensions (Independent Length & Thickness)
+          </span>
+          <span className="text-[10px] text-sky-400 font-mono uppercase">Feature 9 • 28–72px</span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
           <div>
             <div className="flex justify-between text-slate-400 mb-1">
-              <span>Compact Width</span>
-              <span className="font-mono">{config.compactWidth}px</span>
+              <span>Collapsed Length</span>
+              <span className="font-mono text-white">{config.compactWidth}px</span>
             </div>
             <input
               type="range"
-              min={160}
-              max={320}
+              min={100}
+              max={340}
               value={config.compactWidth}
               onChange={(e) => updateConfig({ compactWidth: parseInt(e.target.value), notchPreset: 'custom' })}
               className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-sky-400"
@@ -164,8 +203,23 @@ export const NotchSettingsTab: React.FC = () => {
 
           <div>
             <div className="flex justify-between text-slate-400 mb-1">
+              <span>Collapsed Thickness</span>
+              <span className="font-mono text-sky-300 font-bold">{config.compactHeight}px</span>
+            </div>
+            <input
+              type="range"
+              min={28}
+              max={72}
+              value={config.compactHeight}
+              onChange={(e) => updateConfig({ compactHeight: parseInt(e.target.value), notchPreset: 'custom' })}
+              className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-sky-400"
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between text-slate-400 mb-1">
               <span>Expanded Width</span>
-              <span className="font-mono">{config.expandedWidth}px</span>
+              <span className="font-mono text-white">{config.expandedWidth}px</span>
             </div>
             <input
               type="range"
@@ -173,21 +227,6 @@ export const NotchSettingsTab: React.FC = () => {
               max={760}
               value={config.expandedWidth}
               onChange={(e) => updateConfig({ expandedWidth: parseInt(e.target.value), notchPreset: 'custom' })}
-              className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-sky-400"
-            />
-          </div>
-
-          <div>
-            <div className="flex justify-between text-slate-400 mb-1">
-              <span>Corner Radius</span>
-              <span className="font-mono">{config.cornerRadius}px</span>
-            </div>
-            <input
-              type="range"
-              min={8}
-              max={32}
-              value={config.cornerRadius}
-              onChange={(e) => updateConfig({ cornerRadius: parseInt(e.target.value), notchPreset: 'custom' })}
               className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-sky-400"
             />
           </div>

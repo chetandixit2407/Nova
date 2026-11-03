@@ -30,6 +30,20 @@ class SoundEngine {
     this.volume = Math.max(0, Math.min(1, vol));
   }
 
+  public play(name?: string) {
+    if (name === 'notch_collapse' || name === 'collapse') {
+      this.playSnap();
+    } else if (name === 'notch_expand' || name === 'expand') {
+      this.playPop();
+    } else if (name === 'chime' || name === 'notification') {
+      this.playChime();
+    } else if (name === 'success') {
+      this.playSuccess();
+    } else {
+      this.playTick();
+    }
+  }
+
   // Smooth pop when notch expands
   public playPop() {
     if (!this.isEnabled) return;

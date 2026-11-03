@@ -1,19 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNotch } from '../../context/NotchContext';
 import { NotchCompactPill } from './NotchCompactPill';
-import { NotchExpandedHeader } from './NotchExpandedHeader';
-import { NotchActivitiesTab } from './NotchActivitiesTab';
-import { NotchMediaTab } from './NotchMediaTab';
-import { NotchAIHubTab } from './NotchAIHubTab';
-import { NotchControlsTab } from './NotchControlsTab';
-import { NotchNotificationsTab } from './NotchNotificationsTab';
-import { NotchSettingsTab } from './NotchSettingsTab';
+import { NotchExpandedDashboard } from './NotchExpandedDashboard';
 import { NotchNotificationPill } from './NotchNotificationPill';
+import { InvisibilityCloakOverlay } from './InvisibilityCloakOverlay';
+import { FullscreenMusicModal } from './FullscreenMusicModal';
+import { DetachedNotchWidget } from './DetachedNotchWidget';
 import { getNotificationShapeConfig } from '../../utils/notchShapeHelper';
 import { systemService } from '../../services/systemService';
 import { audioEngine } from '../../services/audioEngine';
-import { FileUp } from 'lucide-react';
+import { windowActivityService, DynamicActivity, WindowsApp } from '../../services/windowActivityService';
+import { FileUp, Sparkles, Dock } from 'lucide-react';
 
 export const NotchRoot: React.FC = () => {
   const {
@@ -29,56 +27,139 @@ export const NotchRoot: React.FC = () => {
     toasts,
     dismissToast,
     expandNotch,
-    setActiveTab
+    setActiveTab,
+    invisibilityCloakActive,
+    toggleInvisibilityCloak,
+    setInvisibilityCloakActive,
+    isDetached,
+    toggleDetached,
+    isFullscreenMusicOpen,
+    setIsFullscreenMusicOpen,
+    addDropShelfFiles
   } = useNotch();
 
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
   const [isAudioPlaying, setIsAudioPlaying] = useState<boolean>(false);
+  const [activities, setActivities] = useState<DynamicActivity[]>([]);
+  const [foregroundApp, setForegroundApp] = useState<WindowsApp | null>(null);
+  const [launchStage, setLaunchStage] = useState<'pop' | 'compact' | 'expanded' | null>(null);
+
+  // Mouse shake detection inside notch for Invisibility Cloak activation
+  const lastShakeRef = useRef<{ lastX: number; lastDir: number; count: number; lastTime: number }>({
+    lastX: 0,
+    lastDir: 0,
+    count: 0,
+    lastTime: 0
+  });
+
+  const handlePointerShake = (e: React.MouseEvent) => {
+    const now = Date.now();
+    const currentX = e.clientX;
+    const diff = currentX - lastShakeRef.current.lastX;
+
+    if (Math.abs(diff) > 20) {
+      const dir = diff > 0 ? 1 : -1;
+      if (lastShakeRef.current.lastDir !== 0 && dir !== lastShakeRef.current.lastDir) {
+        if (now - lastShakeRef.current.lastTime < 500) {
+          lastShakeRef.current.count += 1;
+          if (lastShakeRef.current.count >= 4) {
+            toggleInvisibilityCloak();
+            lastShakeRef.current.count = 0;
+          }
+        } else {
+          lastShakeRef.current.count = 1;
+        }
+      }
+      lastShakeRef.current.lastDir = dir;
+      lastShakeRef.current.lastX = currentX;
+      lastShakeRef.current.lastTime = now;
+    }
+  };
 
   useEffect(() => {
-    const unsub = audioEngine.subscribe(() => {
+    const unsubAudio = audioEngine.subscribe(() => {
       setIsAudioPlaying(audioEngine.getIsPlaying());
     });
-    return unsub;
+    const unsubActs = windowActivityService.subscribeActivities((acts) => {
+      setActivities(acts);
+    });
+    const unsubFg = windowActivityService.subscribeForeground((app) => {
+      setForegroundApp(app);
+    });
+    const unsubLaunch = windowActivityService.subscribeLaunchEvents((e) => {
+      setLaunchStage(e.stage);
+      if (e.stage === 'expanded') {
+        window.setTimeout(() => {
+          setLaunchStage(null);
+        }, 2800);
+      }
+    });
+
+    return () => {
+      unsubAudio();
+      unsubActs();
+      unsubFg();
+      unsubLaunch();
+    };
   }, []);
 
   const hasLiveTask = tasks.some((t) => t.status === 'running');
-  const hasLiveActivity = isAudioPlaying || hasLiveTask;
+  const activeActivitiesCount = activities.filter((a) => a.status === 'active' || a.status === 'launching').length + (isAudioPlaying ? 1 : 0);
+  const isCompleting = activities.some((a) => a.status === 'completing');
 
   // Active notification detection for dynamic notch morphing
   const activeToast = !isExpanded && toasts.length > 0 ? toasts[0] : null;
   const shapeConfig = activeToast ? getNotificationShapeConfig(activeToast) : null;
 
-  // Target dimensions based on state:
-  // 1. Expanded: Sleek compact NOVA dashboard
-  // 2. Active Notification: Dynamically tailored width, height, corner radius & glow
-  // 3. Live Activity: Streamlined live activity pill
-  // 4. Idle Resting: Pure Eyes-Only resting capsule
+  // Custom notch dimensions (Feature 9):
+  // Collapsed length: 100–340px, thickness: 28–72px
+  const baseCompactWidth = Math.max(100, Math.min(340, config.compactWidth || 220));
+  const baseCompactHeight = Math.max(28, Math.min(72, config.compactHeight || 38));
+
   const targetWidth = isExpanded
-    ? Math.min(config.expandedWidth, typeof window !== 'undefined' ? Math.max(340, window.innerWidth - 32) : 540)
+    ? Math.min(Math.max(config.expandedWidth, 680), typeof window !== 'undefined' ? Math.max(340, window.innerWidth - 32) : 680)
     : shapeConfig
     ? shapeConfig.width
-    : hasLiveActivity && showLiveActivities
-    ? 265
-    : 112;
+    : launchStage === 'pop'
+    ? 72
+    : launchStage === 'compact'
+    ? Math.max(baseCompactWidth, 240)
+    : launchStage === 'expanded'
+    ? 360
+    : isCompleting
+    ? 225
+    : showLiveActivities && activeActivitiesCount >= 2
+    ? Math.max(baseCompactWidth, 295)
+    : showLiveActivities && (activeActivitiesCount === 1 || Boolean(foregroundApp))
+    ? Math.max(baseCompactWidth, 245)
+    : baseCompactWidth;
 
   const targetHeight = isExpanded
     ? 'auto'
     : shapeConfig
     ? shapeConfig.height
-    : config.compactHeight;
+    : launchStage === 'pop'
+    ? 44
+    : launchStage === 'compact'
+    ? baseCompactHeight
+    : launchStage === 'expanded'
+    ? 96
+    : baseCompactHeight;
 
   const targetCornerRadius = isExpanded
     ? config.cornerRadius
     : shapeConfig
     ? shapeConfig.cornerRadius
-    : hasLiveActivity && showLiveActivities
+    : launchStage === 'pop'
+    ? 22
+    : launchStage === 'expanded'
+    ? 24
+    : showLiveActivities && activeActivitiesCount > 0
     ? config.cornerRadius
-    : 18;
+    : Math.min(config.cornerRadius, Math.floor(baseCompactHeight / 2));
 
-  // Theme styling
+  // Theme styling (Including all 5 Pro Appearance Themes)
   const getThemeStyles = () => {
-    // If notification is actively morphing the notch, tint background and border dynamically
     if (shapeConfig) {
       return {
         background: shapeConfig.bg,
@@ -89,6 +170,51 @@ export const NotchRoot: React.FC = () => {
     }
 
     switch (config.theme) {
+      // 1. Pro: Liquid Titanium
+      case 'liquid-titanium':
+        return {
+          background: 'linear-gradient(135deg, rgba(28, 33, 44, 0.94) 0%, rgba(16, 19, 26, 0.97) 100%)',
+          backdropFilter: `blur(${Math.max(config.blur, 28)}px)`,
+          border: '1px solid rgba(226, 232, 240, 0.42)',
+          color: '#f8fafc'
+        };
+
+      // 2. Pro: Supernova Horizon
+      case 'supernova-horizon':
+        return {
+          background: 'radial-gradient(ellipse at top, rgba(48, 22, 10, 0.95) 0%, rgba(14, 10, 20, 0.97) 100%)',
+          backdropFilter: `blur(${Math.max(config.blur, 30)}px)`,
+          border: '1px solid rgba(245, 158, 11, 0.55)',
+          color: '#fef3c7'
+        };
+
+      // 3. Pro: Cyber Matrix 3D
+      case 'cyber-matrix-3d':
+        return {
+          background: 'linear-gradient(180deg, rgba(4, 24, 18, 0.96) 0%, rgba(2, 12, 10, 0.98) 100%)',
+          backdropFilter: `blur(${Math.max(config.blur, 30)}px)`,
+          border: '1px solid rgba(52, 211, 153, 0.55)',
+          color: '#ecfdf5'
+        };
+
+      // 4. Pro: Celestial Orrery
+      case 'celestial-orrery':
+        return {
+          background: 'linear-gradient(135deg, rgba(16, 18, 44, 0.95) 0%, rgba(8, 10, 26, 0.98) 100%)',
+          backdropFilter: `blur(${Math.max(config.blur, 30)}px)`,
+          border: '1px solid rgba(129, 140, 248, 0.5)',
+          color: '#e0e7ff'
+        };
+
+      // 5. Pro: Prism Core
+      case 'prism-core':
+        return {
+          background: 'linear-gradient(135deg, rgba(18, 18, 30, 0.94) 0%, rgba(10, 10, 18, 0.97) 100%)',
+          backdropFilter: `blur(${Math.max(config.blur, 32)}px)`,
+          border: '1px solid rgba(236, 72, 153, 0.5)',
+          color: '#ffffff'
+        };
+
       case 'windows-mica':
         return {
           background: `rgba(22, 27, 46, ${config.opacity})`,
@@ -140,6 +266,16 @@ export const NotchRoot: React.FC = () => {
     ? '0 0 0 1.5px #38bdf8, 0 16px 48px -4px rgba(0, 0, 0, 0.9), 0 0 36px 4px rgba(56, 189, 248, 0.85)'
     : shapeConfig
     ? `0 0 0 1px ${shapeConfig.glowColor}55, 0 16px 44px -4px rgba(0, 0, 0, 0.9), 0 0 28px -2px ${shapeConfig.glowColor}77`
+    : config.theme === 'liquid-titanium'
+    ? '0 16px 48px -6px rgba(0, 0, 0, 0.85), 0 0 24px rgba(226, 232, 240, 0.22)'
+    : config.theme === 'supernova-horizon'
+    ? '0 16px 48px -6px rgba(0, 0, 0, 0.85), 0 0 32px rgba(245, 158, 11, 0.35)'
+    : config.theme === 'cyber-matrix-3d'
+    ? '0 16px 48px -6px rgba(0, 0, 0, 0.85), 0 0 30px rgba(16, 185, 129, 0.4)'
+    : config.theme === 'celestial-orrery'
+    ? '0 16px 48px -6px rgba(0, 0, 0, 0.85), 0 0 32px rgba(99, 102, 241, 0.35)'
+    : config.theme === 'prism-core'
+    ? '0 16px 48px -6px rgba(0, 0, 0, 0.85), 0 0 28px rgba(236, 72, 153, 0.32), 0 0 14px rgba(56, 189, 248, 0.25)'
     : config.glowIntensity > 0
     ? `0 0 0 1px rgba(255, 255, 255, 0.1), 0 16px 48px -6px rgba(0, 0, 0, 0.85), 0 0 ${Math.round(
         config.glowIntensity * 0.4
@@ -148,7 +284,7 @@ export const NotchRoot: React.FC = () => {
         .padStart(2, '0')}`
     : '0 8px 32px rgba(0, 0, 0, 0.7)';
 
-  // Drag and drop directly onto notch
+  // Drag and drop directly onto notch (Feat 10: Drop Shelf integration)
   const onDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(true);
@@ -162,12 +298,22 @@ export const NotchRoot: React.FC = () => {
     e.preventDefault();
     setIsDragOver(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
+      const filesArr = Array.from(e.dataTransfer.files);
+      const droppedList = filesArr.map((f) => ({
+        id: `shelf-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        name: f.name,
+        size: f.size,
+        type: f.type || 'application/octet-stream',
+        addedAt: Date.now()
+      }));
+      addDropShelfFiles(droppedList);
+
+      const file = filesArr[0];
       addTask({
         title: `Ingesting: ${file.name}`,
         type: 'upload',
         progress: 0,
-        speed: 'Reading file...',
+        speed: 'Drop Shelf Added',
         detail: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
         status: 'running',
         icon: 'FileUp',
@@ -182,25 +328,6 @@ export const NotchRoot: React.FC = () => {
   const handleOpenNotificationNotch = () => {
     expandNotch();
     setActiveTab('notifications');
-  };
-
-  const renderActiveTab = () => {
-    switch (activeTab) {
-      case 'activities':
-        return <NotchActivitiesTab />;
-      case 'media':
-        return <NotchMediaTab />;
-      case 'ai_hub':
-        return <NotchAIHubTab />;
-      case 'controls':
-        return <NotchControlsTab />;
-      case 'notifications':
-        return <NotchNotificationsTab />;
-      case 'settings':
-        return <NotchSettingsTab />;
-      default:
-        return <NotchActivitiesTab />;
-    }
   };
 
   // Precision spring physics configuration for 60fps fluid morphing
@@ -233,97 +360,148 @@ export const NotchRoot: React.FC = () => {
     }
   };
 
+  // Flexible notch placement classes (Feature 8)
+  const getPlacementClass = () => {
+    switch (config.placement) {
+      case 'top-left':
+        return 'fixed left-8 top-2 z-50 flex justify-start pointer-events-none select-none';
+      case 'top-right':
+        return 'fixed right-8 top-2 z-50 flex justify-end pointer-events-none select-none';
+      case 'left':
+        return 'fixed left-3 top-1/2 -translate-y-1/2 z-50 flex items-center pointer-events-none select-none';
+      case 'right':
+        return 'fixed right-3 top-1/2 -translate-y-1/2 z-50 flex items-center pointer-events-none select-none';
+      case 'top-center':
+      default:
+        return 'fixed left-0 right-0 top-2 z-50 flex justify-center pointer-events-none select-none';
+    }
+  };
+
   return (
-    <div
-      id="nova-notch-container"
-      className="fixed left-0 right-0 z-50 flex justify-center pointer-events-none select-none"
-      style={{ top: `${config.topOffset}px` }}
-    >
-      {/* Invisible safe hover buffer */}
+    <>
+      {/* 1. Invisibility Cloak Fullscreen Privacy Layer */}
+      <InvisibilityCloakOverlay
+        isActive={invisibilityCloakActive}
+        onDismiss={() => setInvisibilityCloakActive(false)}
+      />
+
+      {/* 2. Fullscreen Immersive Music Studio Modal */}
+      <FullscreenMusicModal
+        isOpen={isFullscreenMusicOpen}
+        onClose={() => setIsFullscreenMusicOpen(false)}
+      />
+
+      {/* 3. Detached Notch Screen Floating Widget */}
+      {isDetached && (
+        <DetachedNotchWidget
+          onDockBack={() => toggleDetached()}
+          onOpenFullscreenMusic={() => setIsFullscreenMusicOpen(true)}
+        />
+      )}
+
+      {/* 4. Dynamic Island Notch on Screen Edge */}
       <div
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        className="pointer-events-auto p-1.5 -m-1.5"
+        id="nova-notch-container"
+        className={getPlacementClass()}
+        style={{ top: config.placement.startsWith('top') ? `${config.topOffset}px` : undefined }}
       >
-        <motion.div
-          onDragOver={onDragOver}
-          onDragLeave={onDragLeave}
-          onDrop={onDrop}
-          initial={false}
-          animate={{
-            width: targetWidth,
-            height: targetHeight,
-            borderRadius: targetCornerRadius,
-            scale: isNotchIngesting ? 1.06 : isExpanded ? 1 : 0.995
-          }}
-          transition={morphSpringTransition}
-          style={{
-            ...getThemeStyles(),
-            boxShadow: glowShadow,
-            willChange: 'width, height, transform, border-radius, box-shadow',
-            transform: 'translateZ(0)'
-          }}
-          className="relative overflow-hidden transition-[box-shadow,border-color,background-color] duration-150"
+        {/* Invisible safe hover buffer with mouse shake listener */}
+        <div
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          onMouseMove={handlePointerShake}
+          className="pointer-events-auto p-1.5 -m-1.5"
         >
-          {/* Subtle glass sheen on top edge */}
-          <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none" />
+          {isDetached ? (
+            /* Subtle Re-dock Capsule when Detached */
+            <motion.button
+              onClick={() => toggleDetached()}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="px-3.5 py-1.5 rounded-full bg-black/80 border border-sky-400/40 backdrop-blur-xl text-sky-300 text-xs font-medium flex items-center gap-1.5 shadow-lg shadow-sky-500/15"
+            >
+              <Dock className="w-3.5 h-3.5" />
+              <span>Notch Detached • Click to Dock</span>
+            </motion.button>
+          ) : (
+            <motion.div
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              initial={false}
+              animate={{
+                width: targetWidth,
+                height: targetHeight,
+                borderRadius: targetCornerRadius,
+                scale: isNotchIngesting ? 1.06 : isExpanded ? 1 : 0.995
+              }}
+              transition={morphSpringTransition}
+              style={{
+                ...getThemeStyles(),
+                boxShadow: glowShadow,
+                willChange: 'width, height, transform, border-radius, box-shadow',
+                transform: 'translateZ(0)'
+              }}
+              className="relative overflow-hidden transition-[box-shadow,border-color,background-color] duration-150"
+            >
+              {/* Subtle glass sheen on top edge */}
+              <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none" />
 
-          {/* Drag & drop active indicator */}
-          {isDragOver && (
-            <div className="absolute inset-0 z-50 bg-sky-500/20 backdrop-blur-md flex items-center justify-center border-2 border-dashed border-sky-400 text-sky-200 text-xs font-semibold gap-2">
-              <FileUp className="w-5 h-5 animate-bounce" />
-              <span>Drop file into NOVA</span>
-            </div>
-          )}
-
-          {/* Fluid content morphing */}
-          <AnimatePresence mode="wait" initial={false}>
-            {isExpanded ? (
-              <motion.div
-                key="expanded"
-                initial={{ opacity: 0, y: -4, scale: 0.985 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -4, scale: 0.985 }}
-                transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
-                className="w-full flex flex-col"
-              >
-                <NotchExpandedHeader />
-                <div className="p-3.5 max-h-[calc(80vh-68px)] overflow-y-auto overscroll-contain pr-2">
-                  {renderActiveTab()}
+              {/* Drag & drop active indicator */}
+              {isDragOver && (
+                <div className="absolute inset-0 z-50 bg-sky-500/20 backdrop-blur-md flex items-center justify-center border-2 border-dashed border-sky-400 text-sky-200 text-xs font-semibold gap-2">
+                  <FileUp className="w-5 h-5 animate-bounce" />
+                  <span>Drop into Shelf</span>
                 </div>
-              </motion.div>
-            ) : activeToast && shapeConfig ? (
-              <motion.div
-                key={`notification-${activeToast.id}`}
-                initial={{ opacity: 0, scale: 0.94 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.94 }}
-                transition={{ duration: 0.1, ease: [0.16, 1, 0.3, 1] }}
-                className="w-full h-full flex items-center"
-              >
-                <NotchNotificationPill
-                  toast={activeToast}
-                  shapeConfig={shapeConfig}
-                  totalStacked={toasts.length}
-                  onDismiss={dismissToast}
-                  onOpenNotch={handleOpenNotificationNotch}
-                />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="compact"
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.09, ease: [0.16, 1, 0.3, 1] }}
-                className="w-full h-full flex items-center"
-              >
-                <NotchCompactPill />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
+              )}
+
+              {/* Fluid content morphing */}
+              <AnimatePresence mode="wait" initial={false}>
+                {isExpanded ? (
+                  <motion.div
+                    key="expanded"
+                    initial={{ opacity: 0, y: -4, scale: 0.985 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.985 }}
+                    transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
+                    className="w-full flex flex-col"
+                  >
+                    <NotchExpandedDashboard />
+                  </motion.div>
+                ) : activeToast && shapeConfig ? (
+                  <motion.div
+                    key={`notification-${activeToast.id}`}
+                    initial={{ opacity: 0, scale: 0.94 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.94 }}
+                    transition={{ duration: 0.1, ease: [0.16, 1, 0.3, 1] }}
+                    className="w-full h-full flex items-center"
+                  >
+                    <NotchNotificationPill
+                      toast={activeToast}
+                      shapeConfig={shapeConfig}
+                      totalStacked={toasts.length}
+                      onDismiss={dismissToast}
+                      onOpenNotch={handleOpenNotificationNotch}
+                    />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="compact"
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
+                    transition={{ duration: 0.09, ease: [0.16, 1, 0.3, 1] }}
+                    className="w-full h-full flex items-center"
+                  >
+                    <NotchCompactPill />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 };

@@ -10,7 +10,9 @@ import {
   SystemStatus,
   WeatherData,
   HoveredCardInfo,
-  FlyingTextItem
+  FlyingTextItem,
+  NotchPlacement,
+  DropShelfFile
 } from '../types';
 import { soundService } from '../services/soundService';
 import { systemService } from '../services/systemService';
@@ -20,9 +22,11 @@ const DEFAULT_CONFIG: NotchConfig = {
   theme: 'midnight',
   compactWidth: 220,
   compactHeight: 38,
-  expandedWidth: 540,
+  expandedWidth: 680,
   cornerRadius: 24,
   topOffset: 8,
+  placement: 'top-center',
+  isDetached: false,
   opacity: 0.94,
   blur: 24,
   glowIntensity: 65,
@@ -232,10 +236,23 @@ interface NotchContextValue {
   resetPomodoro: () => void;
   activeActivityCount: number;
   hoveredCardInfo: HoveredCardInfo | null;
-  setHoveredCardInfo: (info: HoveredCardInfo | null) => void;
   showLiveActivities: boolean;
   setShowLiveActivities: (show: boolean) => void;
   toggleLiveActivities: () => void;
+  // Pro Features:
+  invisibilityCloakActive: boolean;
+  toggleInvisibilityCloak: () => void;
+  setInvisibilityCloakActive: (active: boolean) => void;
+  isDetached: boolean;
+  toggleDetached: () => void;
+  dropShelfFiles: DropShelfFile[];
+  addDropShelfFiles: (files: DropShelfFile[]) => void;
+  removeDropShelfFile: (id: string) => void;
+  clearDropShelf: () => void;
+  isFullscreenMusicOpen: boolean;
+  setIsFullscreenMusicOpen: (val: boolean) => void;
+  setPlacement: (placement: NotchPlacement) => void;
+  setDimensions: (width: number, height: number) => void;
 }
 
 const NotchContext = createContext<NotchContextValue | null>(null);
@@ -350,6 +367,66 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
+  // Pro Features State
+  const [invisibilityCloakActive, setInvisibilityCloakActive] = useState<boolean>(false);
+  const [isDetached, setIsDetached] = useState<boolean>(config.isDetached || false);
+  const [dropShelfFiles, setDropShelfFiles] = useState<DropShelfFile[]>([]);
+  const [isFullscreenMusicOpen, setIsFullscreenMusicOpen] = useState<boolean>(false);
+
+  const toggleInvisibilityCloak = useCallback(() => {
+    setInvisibilityCloakActive((prev) => {
+      const next = !prev;
+      if (next) soundService.play('notch_expand');
+      else soundService.play('notch_collapse');
+      return next;
+    });
+  }, []);
+
+  const toggleDetached = useCallback(() => {
+    setIsDetached((prev) => {
+      const next = !prev;
+      updateConfig({ isDetached: next });
+      if (next) soundService.play('notch_expand');
+      else soundService.play('notch_collapse');
+      return next;
+    });
+  }, [updateConfig]);
+
+  const addDropShelfFiles = useCallback((newFiles: DropShelfFile[]) => {
+    setDropShelfFiles((prev) => [...prev, ...newFiles]);
+  }, []);
+
+  const removeDropShelfFile = useCallback((id: string) => {
+    setDropShelfFiles((prev) => prev.filter((f) => f.id !== id));
+  }, []);
+
+  const clearDropShelf = useCallback(() => {
+    setDropShelfFiles([]);
+  }, []);
+
+  const setPlacement = useCallback((placement: NotchPlacement) => {
+    updateConfig({ placement });
+    soundService.play('toggle');
+  }, [updateConfig]);
+
+  const setDimensions = useCallback((compactWidth: number, compactHeight: number) => {
+    updateConfig({ compactWidth, compactHeight });
+  }, [updateConfig]);
+
+  // Global Keyboard Shortcuts (Ctrl+Alt+H for Invisibility Cloak, Escape to dismiss)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.altKey && (e.key === 'h' || e.key === 'H')) {
+        e.preventDefault();
+        toggleInvisibilityCloak();
+      } else if (e.key === 'Escape' && invisibilityCloakActive) {
+        setInvisibilityCloakActive(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [invisibilityCloakActive, toggleInvisibilityCloak]);
+
   const resetConfig = useCallback(() => {
     setConfig(DEFAULT_CONFIG);
     localStorage.removeItem('nova_notch_config');
@@ -365,7 +442,7 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           theme: 'midnight',
           compactWidth: 210,
           compactHeight: 38,
-          expandedWidth: 540,
+          expandedWidth: 680,
           cornerRadius: 22,
           glowIntensity: 60,
           glowColor: '#38bdf8',
@@ -379,7 +456,7 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           theme: 'windows-mica',
           compactWidth: 250,
           compactHeight: 40,
-          expandedWidth: 560,
+          expandedWidth: 680,
           cornerRadius: 18,
           glowIntensity: 45,
           glowColor: '#818cf8',
@@ -393,7 +470,7 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           theme: 'cyber-glow',
           compactWidth: 230,
           compactHeight: 36,
-          expandedWidth: 520,
+          expandedWidth: 660,
           cornerRadius: 14,
           glowIntensity: 85,
           glowColor: '#10b981',
@@ -407,7 +484,7 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           theme: 'oled-stealth',
           compactWidth: 160,
           compactHeight: 34,
-          expandedWidth: 480,
+          expandedWidth: 640,
           cornerRadius: 20,
           glowIntensity: 20,
           glowColor: '#ffffff',
@@ -918,10 +995,23 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         resetPomodoro,
         activeActivityCount,
         hoveredCardInfo,
-        setHoveredCardInfo,
         showLiveActivities,
         setShowLiveActivities,
-        toggleLiveActivities
+        toggleLiveActivities,
+        // Pro Features:
+        invisibilityCloakActive,
+        toggleInvisibilityCloak,
+        setInvisibilityCloakActive,
+        isDetached,
+        toggleDetached,
+        dropShelfFiles,
+        addDropShelfFiles,
+        removeDropShelfFile,
+        clearDropShelf,
+        isFullscreenMusicOpen,
+        setIsFullscreenMusicOpen,
+        setPlacement,
+        setDimensions
       }}
     >
       {children}

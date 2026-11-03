@@ -411,6 +411,101 @@ export default function App() {
                   </div>
                 </div>
               )}
+
+              {/* 7. WINDOWS CALCULATOR */}
+              {appId === 'calculator' && (
+                <div className="p-4 bg-slate-950 flex flex-col items-center justify-center space-y-3">
+                  <div className="w-full max-w-xs bg-slate-900 border border-white/10 rounded-xl p-4 shadow-xl">
+                    <div className="text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-1">Standard Calculator</div>
+                    <div className="text-2xl font-mono font-bold text-white text-right pb-3 border-b border-white/10">
+                      0
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 pt-3 text-xs font-mono">
+                      {['C', '±', '%', '÷', '7', '8', '9', '×', '4', '5', '6', '-', '1', '2', '3', '+', '0', '.', '='].map((btn) => (
+                        <button
+                          key={btn}
+                          className={`p-2.5 rounded-lg border text-center font-bold cursor-pointer transition-colors ${
+                            btn === '='
+                              ? 'bg-sky-500 text-slate-950 border-sky-400 col-span-2'
+                              : ['÷', '×', '-', '+'].includes(btn)
+                              ? 'bg-sky-500/20 text-sky-300 border-sky-400/30 hover:bg-sky-500/30'
+                              : 'bg-white/5 border-white/10 text-slate-200 hover:bg-white/10'
+                          }`}
+                        >
+                          {btn}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 8. WINDOWS SETTINGS */}
+              {appId === 'settings' && (
+                <div className="p-5 bg-slate-950 space-y-4 text-xs">
+                  <div className="flex items-center gap-3 pb-3 border-b border-white/10">
+                    <div className="w-9 h-9 rounded-xl bg-sky-500/20 flex items-center justify-center text-sky-400">
+                      <Layers className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white">System Settings</h4>
+                      <p className="text-[11px] text-slate-400">Windows 11 Workstation · NOVA Island Integrated</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 font-mono">
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <span className="text-slate-400 text-[10px]">Device Name</span>
+                      <div className="text-white font-semibold">NOVA-DESKTOP-PRO</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <span className="text-slate-400 text-[10px]">Windows Edition</span>
+                      <div className="text-white font-semibold">Windows 11 Pro 64-bit</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <span className="text-slate-400 text-[10px]">Processor</span>
+                      <div className="text-white font-semibold">AMD Ryzen 9 / Intel Core i9</div>
+                    </div>
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/10">
+                      <span className="text-slate-400 text-[10px]">Installed RAM</span>
+                      <div className="text-white font-semibold">16.0 GB (15.8 GB usable)</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 9. GENERIC WINDOWS APPLICATION FALLBACK (Chrome, Brave, Firefox, Discord, Slack, Steam, etc.) */}
+              {appId !== 'vscode' &&
+                appId !== 'terminal' &&
+                appId !== 'spotify' &&
+                appId !== 'edge' &&
+                appId !== 'taskmgr' &&
+                appId !== 'explorer' &&
+                appId !== 'calculator' &&
+                appId !== 'settings' && (
+                  <div className="p-6 bg-slate-950 flex flex-col items-center justify-center space-y-4 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-sky-400 shadow-xl">
+                      <Globe className="w-7 h-7" />
+                    </div>
+
+                    <div className="space-y-1">
+                      <h4 className="text-base font-bold text-white tracking-tight">{app.name}</h4>
+                      <p className="text-xs text-slate-400 max-w-sm">
+                        Process <code className="text-sky-300 font-mono">{app.processName}</code> active in foreground.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-xs font-mono text-slate-300 bg-white/5 px-4 py-2 rounded-xl border border-white/10">
+                      <span>PID: {2048 + appId.length * 37}</span>
+                      <span>CPU: {app.cpuPercent || 0.8}%</span>
+                      <span>RAM: {app.memoryMB || 140} MB</span>
+                      <span className="text-emerald-400 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Running
+                      </span>
+                    </div>
+                  </div>
+                )}
             </div>
           </div>
         );

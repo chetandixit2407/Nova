@@ -1,0 +1,30 @@
+[package]
+name = "nova-desktop"
+version = "1.0.0"
+description = "NOVA — Windows Smart Notch and Dynamic Island"
+authors = ["Chetan Dixit <chetandixit9968@gmail.com>"]
+license = "MIT"
+repository = "https://github.com/chetandixit2407/Nova"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2.0.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0.0", features = ["tray-icon"] }
+tauri-plugin-shell = "2.0.0"
+tauri-plugin-notification = "2.0.0"
+tauri-plugin-global-shortcut = "2.0.0"
+tauri-plugin-autostart = "2.0.0"
+tauri-plugin-clipboard-manager = "2.0.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+windows = { version = "0.58", features = [
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_Foundation",
+    "Win32_Graphics_Dwm",
+    "Win32_System_Threading"
+] }
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]

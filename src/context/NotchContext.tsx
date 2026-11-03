@@ -112,19 +112,16 @@ const DEFAULT_AI_TOOLS: AITool[] = [
   }
 ];
 
+export const EXCLUDED_ACTIVITY_PATTERNS = ['KB5043145', 'task-win-update'];
+
+export const isExcludedActivity = (title?: string, id?: string): boolean => {
+  if (!title && !id) return false;
+  return EXCLUDED_ACTIVITY_PATTERNS.some(
+    (pattern) => (title && title.includes(pattern)) || (id && id.includes(pattern))
+  );
+};
+
 const INITIAL_TASKS: LiveTask[] = [
-  {
-    id: 'task-win-update',
-    title: 'Windows 11 Security Patch (KB5043145)',
-    type: 'install',
-    progress: 68,
-    speed: '4.8 MB/s',
-    detail: 'Installing package 4 of 6 (720 MB total)',
-    status: 'running',
-    icon: 'ShieldCheck',
-    canPause: true,
-    canCancel: true
-  },
   {
     id: 'task-vscode-dl',
     title: 'Downloading VS Code v1.95 (x64)',
@@ -134,6 +131,18 @@ const INITIAL_TASKS: LiveTask[] = [
     detail: '48.2 MB of 114.7 MB · 6s remaining',
     status: 'running',
     icon: 'Download',
+    canPause: true,
+    canCancel: true
+  },
+  {
+    id: 'task-directx-runtime',
+    title: 'DirectX 12 End-User Runtimes',
+    type: 'install',
+    progress: 84,
+    speed: '16.8 MB/s',
+    detail: 'Verifying cryptographic digital signatures',
+    status: 'running',
+    icon: 'ShieldCheck',
     canPause: true,
     canCancel: true
   }
@@ -276,8 +285,31 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [isPinned, setIsPinned] = useState<boolean>(false);
   const [activeTab, setActiveTabState] = useState<NotchTab>('activities');
-  const [tasks, setTasks] = useState<LiveTask[]>(INITIAL_TASKS);
-  const [notifications, setNotifications] = useState<AppNotification[]>(INITIAL_NOTIFICATIONS);
+  const [tasks, setTasks] = useState<LiveTask[]>(() => {
+    try {
+      const saved = localStorage.getItem('nova_live_tasks');
+      if (saved) {
+        const parsed: LiveTask[] = JSON.parse(saved);
+        return parsed.filter((t) => !isExcludedActivity(t.title, t.id));
+      }
+      return INITIAL_TASKS.filter((t) => !isExcludedActivity(t.title, t.id));
+    } catch {
+      return INITIAL_TASKS.filter((t) => !isExcludedActivity(t.title, t.id));
+    }
+  });
+
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    try {
+      const saved = localStorage.getItem('nova_notifications');
+      if (saved) {
+        const parsed: AppNotification[] = JSON.parse(saved);
+        return parsed.filter((n) => !isExcludedActivity(n.title, n.id) && !n.message?.includes('KB5043145'));
+      }
+      return INITIAL_NOTIFICATIONS.filter((n) => !isExcludedActivity(n.title, n.id) && !n.message?.includes('KB5043145'));
+    } catch {
+      return INITIAL_NOTIFICATIONS.filter((n) => !isExcludedActivity(n.title, n.id) && !n.message?.includes('KB5043145'));
+    }
+  });
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
   const [dndEnabled, setDndEnabled] = useState<boolean>(false);
 
@@ -567,9 +599,16 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Tasks actions
   const addTask = useCallback((task: Omit<LiveTask, 'id'>) => {
+    if (isExcludedActivity(task.title)) return;
     const id = `task-${Date.now()}`;
     const newTask: LiveTask = { ...task, id };
-    setTasks((prev) => [newTask, ...prev]);
+    setTasks((prev) => {
+      const updated = [newTask, ...prev.filter((t) => !isExcludedActivity(t.title, t.id))];
+      try {
+        localStorage.setItem('nova_live_tasks', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
     soundService.playTick();
   }, []);
 
@@ -588,12 +627,24 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const cancelTask = useCallback((id: string) => {
-    setTasks((prev) => prev.filter((t) => t.id !== id));
+    setTasks((prev) => {
+      const updated = prev.filter((t) => t.id !== id);
+      try {
+        localStorage.setItem('nova_live_tasks', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
     soundService.playSnap();
   }, []);
 
   const clearCompletedTasks = useCallback(() => {
-    setTasks((prev) => prev.filter((t) => t.status !== 'completed'));
+    setTasks((prev) => {
+      const updated = prev.filter((t) => t.status !== 'completed');
+      try {
+        localStorage.setItem('nova_live_tasks', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
     soundService.playTick();
   }, []);
 
@@ -640,6 +691,7 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const showToast = useCallback(
     (toast: Omit<ToastNotification, 'id' | 'timestamp'>) => {
       if (dndEnabled) return;
+      if (isExcludedActivity(toast.title) || toast.message?.includes('KB5043145')) return;
       const id = `toast-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       const newToast: ToastNotification = {
         ...toast,

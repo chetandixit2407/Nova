@@ -212,6 +212,12 @@ class WindowActivityService {
     });
   }
 
+  public registerApp(app: WindowsApp) {
+    if (!this.registeredApps.has(app.id)) {
+      this.registeredApps.set(app.id, app);
+    }
+  }
+
   public getForegroundApp(): WindowsApp | null {
     return this.foregroundAppId ? this.registeredApps.get(this.foregroundAppId) || null : null;
   }
@@ -230,9 +236,15 @@ class WindowActivityService {
    * Stage 2: Morph to compact live pill
    * Stage 3: Dynamic activity card ready
    */
-  public launchApp(appId: string): WindowsApp | null {
+  public launchApp(appId: string, options?: { activateIfRunning?: boolean }): WindowsApp | null {
     const app = this.registeredApps.get(appId);
     if (!app) return null;
+
+    // If app is already open & running, and activateIfRunning is requested, bring to foreground
+    if (options?.activateIfRunning && app.status === 'running') {
+      this.focusApp(appId);
+      return app;
+    }
 
     // Update app state
     app.status = 'launching';
@@ -368,6 +380,11 @@ class WindowActivityService {
     detail?: string;
     icon?: string;
   }) {
+    // Permanently exclude Windows 11 Security Patch (KB5043145) from Dynamic Notch
+    if (task.title?.includes('KB5043145') || task.id?.includes('KB5043145') || task.id === 'task-win-update') {
+      return;
+    }
+
     const activityId = `act-task-${task.id}`;
 
     if (task.status === 'completed') {

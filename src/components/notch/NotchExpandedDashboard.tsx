@@ -67,6 +67,7 @@ import { DropShelfModal } from './DropShelfModal';
 import { ClipboardProModal } from './ClipboardProModal';
 import { QuickAppsBarModal } from './QuickAppsBarModal';
 import { VolumeMixerModal } from './VolumeMixerModal';
+import { MicrosoftStoreModal } from './MicrosoftStoreModal';
 import { windowActivityService, DynamicActivity, WindowsApp } from '../../services/windowActivityService';
 
 export type ExpandedSubView =
@@ -87,7 +88,8 @@ export type ExpandedSubView =
   | 'drop_shelf'
   | 'clipboard_pro'
   | 'quick_apps'
-  | 'volume_mixer';
+  | 'volume_mixer'
+  | 'ms_store';
 
 export const NotchExpandedDashboard: React.FC = () => {
   const {
@@ -470,6 +472,20 @@ export const NotchExpandedDashboard: React.FC = () => {
             <Sparkles className="w-3 h-3 text-sky-400" />
             <span>PRO</span>
           </div>
+
+          {/* Microsoft Store MSIX Center */}
+          <button
+            onClick={() => setSubView(subView === 'ms_store' ? 'none' : 'ms_store')}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-md border text-[10px] font-mono font-bold transition-all cursor-pointer ${
+              subView === 'ms_store'
+                ? 'bg-sky-500/25 border-sky-400 text-sky-300'
+                : 'bg-white/5 border-white/10 text-slate-300 hover:text-white hover:bg-white/10'
+            }`}
+            title="Microsoft Store MSIX Packaging & WACK Certification Center"
+          >
+            <ShieldCheck className="w-3 h-3 text-emerald-400" />
+            <span className="hidden sm:inline">MS STORE</span>
+          </button>
 
           {/* Weather Temperature */}
           <button
@@ -861,9 +877,19 @@ export const NotchExpandedDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* BOTTOM ROW: 3 COMPACT SHORTCUT CARDS (Calculator, Snipping Tool, System Monitor) */}
-              <div className="grid grid-cols-3 gap-2.5 pt-0.5">
-                {/* 1. Calculator Shortcut */}
+              {/* BOTTOM ROW: 4 COMPACT SHORTCUT CARDS (Quick Apps Bar, Calculator, Snipping Tool, System Monitor) */}
+              <div className="grid grid-cols-4 gap-2.5 pt-0.5">
+                {/* 1. Quick Apps Bar (5 Slots) */}
+                <button
+                  onClick={() => setSubView('quick_apps')}
+                  className="bg-white/[0.04] hover:bg-sky-500/15 active:scale-[0.98] border border-white/[0.08] hover:border-sky-400/30 rounded-2xl py-3 px-3 flex items-center justify-center gap-1.5 transition-all cursor-pointer group shadow-sm text-xs font-semibold text-slate-300 hover:text-white"
+                  title="Quick Apps Bar (5 Slots)"
+                >
+                  <Layers className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" />
+                  <span className="hidden sm:inline text-[11px]">Quick Apps</span>
+                </button>
+
+                {/* 2. Calculator Shortcut */}
                 <button
                   onClick={() => setSubView('calculator')}
                   className="bg-white/[0.04] hover:bg-white/10 active:scale-[0.98] border border-white/[0.08] hover:border-white/20 rounded-2xl py-3 px-4 flex items-center justify-center transition-all cursor-pointer group shadow-sm"
@@ -872,7 +898,7 @@ export const NotchExpandedDashboard: React.FC = () => {
                   <CalculatorIcon className="w-4 h-4 text-slate-300 group-hover:text-white transition-colors" />
                 </button>
 
-                {/* 2. Snipping Tool / Screenshot Shortcut */}
+                {/* 3. Snipping Tool / Screenshot Shortcut */}
                 <button
                   onClick={handleCaptureScreen}
                   className="bg-white/[0.04] hover:bg-white/10 active:scale-[0.98] border border-white/[0.08] hover:border-white/20 rounded-2xl py-3 px-4 flex items-center justify-center transition-all cursor-pointer group shadow-sm"
@@ -881,7 +907,7 @@ export const NotchExpandedDashboard: React.FC = () => {
                   <Scissors className="w-4 h-4 text-slate-300 group-hover:text-white transition-colors" />
                 </button>
 
-                {/* 3. System Monitor Shortcut */}
+                {/* 4. System Monitor Shortcut */}
                 <button
                   onClick={() => setSubView('system_monitor')}
                   className="bg-white/[0.04] hover:bg-white/10 active:scale-[0.98] border border-white/[0.08] hover:border-white/20 rounded-2xl py-3 px-4 flex items-center justify-center transition-all cursor-pointer group shadow-sm"
@@ -1314,6 +1340,10 @@ export const NotchExpandedDashboard: React.FC = () => {
 
               {subView === 'volume_mixer' && (
                 <VolumeMixerModal onClose={() => setSubView('none')} />
+              )}
+
+              {subView === 'ms_store' && (
+                <MicrosoftStoreModal onClose={() => setSubView('none')} />
               )}
             </motion.div>
           )}

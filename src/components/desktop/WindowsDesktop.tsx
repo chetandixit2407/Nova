@@ -51,10 +51,19 @@ export const WindowsDesktop: React.FC = () => {
 
   // Subscribe to window activity service
   useEffect(() => {
-    const unsub = windowActivityService.subscribeForeground((app) => {
+    const unsubForeground = windowActivityService.subscribeForeground((app) => {
       setForegroundAppId(app ? app.id : null);
     });
-    return unsub;
+
+    const unsubLaunch = windowActivityService.subscribeLaunchEvents((event) => {
+      setOpenApps((prev) => (prev.includes(event.app.id) ? prev : [...prev, event.app.id]));
+      setForegroundAppId(event.app.id);
+    });
+
+    return () => {
+      unsubForeground();
+      unsubLaunch();
+    };
   }, []);
 
   // Audio subscribe

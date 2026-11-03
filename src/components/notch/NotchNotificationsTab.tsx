@@ -168,7 +168,7 @@ export const NotchNotificationsTab: React.FC = () => {
             { label: 'Battery', type: 'battery_low', title: 'Battery Critical', msg: '12% battery remaining. Plug into AC power.', app: 'Windows Power' },
             { label: 'Music', type: 'music', title: 'Now Playing Synthwave', msg: 'Neon Horizon by NOVA Audio', app: 'Spotify' },
             { label: 'Timer', type: 'timer_complete', title: 'System Timer Finished', msg: 'Count down completed for task reminder.', app: 'Clock & Timer' },
-            { label: 'Update', type: 'system_update', title: 'KB5043145 Ready', msg: 'Windows 11 update ready to apply.', app: 'Windows Update' }
+            { label: 'Update', type: 'system_update', title: 'Windows 11 Update', msg: 'Security intelligence definitions updated.', app: 'Windows Update' }
           ].map((item) => (
             <button
               key={item.type}

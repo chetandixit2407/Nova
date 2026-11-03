@@ -227,6 +227,24 @@ export interface ClipboardProItem {
   };
 }
 
+export interface InstalledWindowsApp {
+  id: string;
+  name: string;
+  publisher?: string;
+  version?: string;
+  category: 'developer' | 'browser' | 'media' | 'utility' | 'system' | 'gaming' | 'productivity' | 'custom';
+  exePath: string;
+  startMenuShortcut?: string;
+  protocol?: string;
+  processName: string;
+  iconName: string;
+  iconColor: string;
+  isPinned: boolean;
+  isCustom?: boolean;
+  orderIndex: number;
+  lastLaunched?: number;
+}
+
 // Pro 12: Quick Apps Bar
 export interface QuickAppShortcut {
   id: string;
@@ -234,6 +252,12 @@ export interface QuickAppShortcut {
   icon: string;
   target: string;
   actionType: 'app' | 'url' | 'path';
+  exePath?: string;
+  protocol?: string;
+  category?: string;
+  iconColor?: string;
+  isCustom?: boolean;
+  activateIfRunning?: boolean;
 }
 
 // Pro 13: Volume Mixer

@@ -1,0 +1,96 @@
+{
+  "$schema": "https://schema.tauri.app/v2/config",
+  "productName": "NOVA",
+  "version": "1.0.0",
+  "identifier": "com.nova.smartnotch",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "NOVA — Windows Smart Notch",
+        "label": "main",
+        "width": 680,
+        "height": 520,
+        "resizable": false,
+        "fullscreen": false,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": false,
+        "center": true,
+        "shadow": false
+      }
+    ],
+    "trayIcon": {
+      "iconPath": "icons/icon.ico",
+      "tooltip": "NOVA Dynamic Island Daemon",
+      "iconAsTemplate": true
+    },
+    "security": {
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' https: http: data: blob:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["msix", "nsis"],
+    "icon": [
+      "icons/Square44x44Logo.png",
+      "icons/Square150x150Logo.png",
+      "icons/Wide310x150Logo.png",
+      "icons/StoreLogo.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.digicert.com",
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico"
+      },
+      "msix": {
+        "identity": {
+          "name": "ChetanDixit.NOVANOTCH",
+          "publisher": "CN=1635A490-94F8-403E-9B36-79A1AE02E253",
+          "version": "1.0.0.0",
+          "processorArchitecture": "x64"
+        },
+        "displayName": "NOVA - Windows Smart Notch",
+        "publisherDisplayName": "Chetan Dixit",
+        "description": "Premium Dynamic Island and Smart Notch for Windows desktop with live activities, media visualizer, AI Hub, and system quick controls.",
+        "logo": "icons/StoreLogo.png",
+        "capabilities": [
+          "runFullTrust",
+          "internetClient"
+        ],
+        "languages": [
+          "en-US"
+        ]
+      }
+    }
+  },
+  "plugins": {
+    "autostart": {
+      "mac": {
+        "useLaunchAgent": false
+      }
+    },
+    "global-shortcut": {
+      "shortcuts": [
+        {
+          "accelerator": "Alt+Space",
+          "action": "toggle_notch"
+        },
+        {
+          "accelerator": "Alt+N",
+          "action": "toggle_notch"
+        }
+      ]
+    }
+  }
+}

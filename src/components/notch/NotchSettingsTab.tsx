@@ -10,12 +10,16 @@ import {
   Laptop,
   Eye,
   EyeOff,
-  Activity
+  Activity,
+  ShieldCheck,
+  CheckCircle2
 } from 'lucide-react';
 import { useNotch } from '../../context/NotchContext';
 import { NotchConfig, NotchTheme } from '../../types';
+import { MicrosoftStoreModal } from './MicrosoftStoreModal';
 
 export const NotchSettingsTab: React.FC = () => {
+  const [showStoreModal, setShowStoreModal] = React.useState<boolean>(false);
   const {
     config,
     updateConfig,
@@ -357,6 +361,33 @@ export const NotchSettingsTab: React.FC = () => {
         </div>
       </div>
 
+      {/* Microsoft Store MSIX Packaging & WACK Certification */}
+      <div className="bg-gradient-to-r from-sky-950/40 via-slate-900/60 to-slate-900/40 border border-sky-400/25 rounded-xl p-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-lg">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-400 shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white flex items-center gap-2">
+              <span>Microsoft Store & MSIX Package Center</span>
+              <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-mono font-bold">
+                14/14 WACK PASSED
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-400">
+              Windows App Certification Kit compliance, AppxManifest.xml, and Partner Center submission
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setShowStoreModal(true)}
+          className="px-3.5 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+        >
+          <span>Open Store Center</span>
+        </button>
+      </div>
+
       {/* Reset Defaults */}
       <div className="pt-2 flex justify-end">
         <button
@@ -367,6 +398,15 @@ export const NotchSettingsTab: React.FC = () => {
           <span>Reset All to Defaults</span>
         </button>
       </div>
+
+      {/* Store Modal */}
+      {showStoreModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl bg-slate-900 border border-white/20 rounded-2xl shadow-2xl overflow-hidden">
+            <MicrosoftStoreModal onClose={() => setShowStoreModal(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

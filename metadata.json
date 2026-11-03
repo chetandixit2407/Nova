@@ -1,0 +1,6 @@
+{
+  "name": "NOVA - Windows Smart Notch",
+  "description": "Premium Dynamic Island and Smart Notch for Windows desktop with live activities, media visualizer, AI Hub, and system quick controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

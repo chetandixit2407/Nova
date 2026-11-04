@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useNotch } from '../../context/NotchContext';
 import { NotchCompactPill } from './NotchCompactPill';
 import { NotchExpandedDashboard } from './NotchExpandedDashboard';
+import { NotchAppLauncher } from './NotchAppLauncher';
 import { NotchNotificationPill } from './NotchNotificationPill';
 import { IncomingCallNotchPill } from './IncomingCallNotchPill';
 import { InvisibilityCloakOverlay } from './InvisibilityCloakOverlay';
@@ -14,6 +15,7 @@ import { systemService } from '../../services/systemService';
 import { audioEngine } from '../../services/audioEngine';
 import { windowActivityService, DynamicActivity, WindowsApp } from '../../services/windowActivityService';
 import { phoneSyncService } from '../../services/phoneSyncService';
+import { soundService } from '../../services/soundService';
 import { greetingService, ActiveGreetingState } from '../../services/greetingService';
 import { PersonalizedGreetingBanner } from './PersonalizedGreetingBanner';
 import { ActiveCallState } from '../../types';
@@ -42,7 +44,13 @@ export const NotchRoot: React.FC = () => {
     isFullscreenMusicOpen,
     setIsFullscreenMusicOpen,
     addDropShelfFiles,
-    eyesOnlyMode
+    eyesOnlyMode,
+    toggleExpand,
+    collapseNotch,
+    notchPosition,
+    setNotchPosition,
+    resetNotchPosition,
+    isCustomPositioned
   } = useNotch();
 
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
@@ -181,85 +189,40 @@ export const NotchRoot: React.FC = () => {
   const shapeConfig = activeToast ? getNotificationShapeConfig(activeToast) : null;
   const isGreetingActive = !isExpanded && !activeCall && !activeToast && activeGreeting.isActive;
 
-  // Collapsed size target: approximately 320–360px wide and 38px high
-  const baseCompactWidth = Math.max(300, Math.min(380, config.compactWidth || 340));
-  const baseCompactHeight = Math.max(36, Math.min(42, config.compactHeight || 38));
+  // Vault-Style Minimal Notch UI:
+  // Collapsed: ONLY two minimal animated eyes in an ultra-clean compact capsule
+  const baseCompactWidth = 118;
+  const baseCompactHeight = 36;
   const responsiveCompactWidth = Math.min(baseCompactWidth, screenBounds.width - 24);
 
-  // Compact size matching reference screenshot: sleek, centered, responsive
+  // Expanded: The complete rich NOVA Dashboard (Media Player, Activities, Controls, Phone Sync, Quick Apps, etc.)
   const maxAllowedWidth = Math.min(560, screenBounds.width - 24);
   const maxAllowedHeight = eyesOnlyMode
     ? 220
-    : Math.min(335, screenBounds.height - 24);
+    : Math.min(340, screenBounds.height - 24);
 
-  const targetWidth = isExpanded
-    ? maxAllowedWidth
-    : activeCall
-    ? activeCall.status === 'ringing'
-      ? Math.min(480, screenBounds.width - 24)
-      : activeCall.status === 'connected'
-      ? Math.min(420, screenBounds.width - 24)
-      : Math.min(360, screenBounds.width - 24)
-    : shapeConfig
-    ? Math.min(shapeConfig.width, screenBounds.width - 24)
-    : isGreetingActive
-    ? Math.min(430, screenBounds.width - 24)
-    : launchStage === 'pop'
-    ? 68
-    : launchStage === 'compact'
-    ? Math.max(responsiveCompactWidth, 240)
-    : launchStage === 'expanded'
-    ? Math.min(maxAllowedWidth, screenBounds.width - 24)
-    : isCompleting
-    ? 260
-    : showLiveActivities && activeActivitiesCount >= 2
-    ? Math.max(responsiveCompactWidth, Math.min(360, screenBounds.width - 24))
-    : showLiveActivities && (activeActivitiesCount === 1 || Boolean(foregroundApp))
-    ? Math.max(responsiveCompactWidth, Math.min(340, screenBounds.width - 24))
-    : responsiveCompactWidth;
-
-  const targetHeight = isExpanded
-    ? maxAllowedHeight
-    : activeCall
-    ? activeCall.status === 'ringing'
-      ? 68
-      : activeCall.status === 'connected'
-      ? 54
-      : 48
-    : shapeConfig
-    ? shapeConfig.height
-    : isGreetingActive
-    ? 44
-    : launchStage === 'pop'
-    ? 40
-    : launchStage === 'compact'
-    ? baseCompactHeight
-    : launchStage === 'expanded'
-    ? 90
-    : baseCompactHeight;
+  const targetWidth = isExpanded ? maxAllowedWidth : responsiveCompactWidth;
+  const targetHeight = isExpanded ? maxAllowedHeight : baseCompactHeight;
 
   // Synchronize Tauri native window bounds and top-center positioning with zero resize flicker
   useEffect(() => {
-    const numHeight = typeof targetHeight === 'number' ? targetHeight : 540;
+    const numHeight = typeof targetHeight === 'number' ? targetHeight : 340;
     systemService.syncNativeWindow(isExpanded, targetWidth, numHeight);
   }, [isExpanded, targetWidth, targetHeight]);
 
-  const targetCornerRadius = isExpanded
-    ? 24
-    : activeCall
-    ? 26
-    : shapeConfig
-    ? shapeConfig.cornerRadius
-    : isGreetingActive
-    ? 22
-    : launchStage === 'pop'
-    ? 22
-    : launchStage === 'expanded'
-    ? 24
-    : 20;
+  const targetCornerRadius = isExpanded ? 24 : 18;
 
   // Theme styling (Including all 5 Pro Appearance Themes)
   const getThemeStyles = () => {
+    if (!isExpanded) {
+      return {
+        background: 'rgba(5, 8, 16, 0.96)',
+        backdropFilter: 'blur(28px)',
+        border: '1px solid rgba(56, 189, 248, 0.45)',
+        color: '#f8fafc'
+      };
+    }
+
     if (activeCall) {
       if (activeCall.status === 'ringing') {
         return {
@@ -390,38 +353,28 @@ export const NotchRoot: React.FC = () => {
         return {
           background: `rgba(10, 14, 24, ${config.opacity})`,
           backdropFilter: `blur(${config.blur}px)`,
-          border: '1px solid rgba(255, 255, 255, 0.14)',
+          border: '1px solid rgba(56, 189, 248, 0.45)',
           color: '#f8fafc'
         };
     }
   };
 
   // Glow shadow calculation
-  const glowShadow = activeCall
+  const glowShadow = !isExpanded
+    ? '0 0 0 1px rgba(56, 189, 248, 0.4), 0 8px 24px -4px rgba(0, 0, 0, 0.85), 0 0 16px -2px rgba(56, 189, 248, 0.4)'
+    : activeCall
     ? activeCall.status === 'ringing'
       ? '0 0 0 1.5px #10b981, 0 16px 48px -4px rgba(0, 0, 0, 0.9), 0 0 36px 4px rgba(16, 185, 129, 0.75)'
       : '0 0 0 1px #38bdf8, 0 16px 48px -4px rgba(0, 0, 0, 0.9), 0 0 28px -2px rgba(56, 189, 248, 0.65)'
     : isNotchIngesting
     ? '0 0 0 1.5px #38bdf8, 0 16px 48px -4px rgba(0, 0, 0, 0.9), 0 0 36px 4px rgba(56, 189, 248, 0.85)'
-    : shapeConfig
-    ? `0 0 0 1px ${shapeConfig.glowColor}55, 0 16px 44px -4px rgba(0, 0, 0, 0.9), 0 0 28px -2px ${shapeConfig.glowColor}77`
-    : config.theme === 'liquid-titanium'
-    ? '0 16px 48px -6px rgba(0, 0, 0, 0.85), 0 0 24px rgba(226, 232, 240, 0.22)'
-    : config.theme === 'supernova-horizon'
-    ? '0 16px 48px -6px rgba(0, 0, 0, 0.85), 0 0 32px rgba(245, 158, 11, 0.35)'
-    : config.theme === 'cyber-matrix-3d'
-    ? '0 16px 48px -6px rgba(0, 0, 0, 0.85), 0 0 30px rgba(16, 185, 129, 0.4)'
-    : config.theme === 'celestial-orrery'
-    ? '0 16px 48px -6px rgba(0, 0, 0, 0.85), 0 0 32px rgba(99, 102, 241, 0.35)'
-    : config.theme === 'prism-core'
-    ? '0 16px 48px -6px rgba(0, 0, 0, 0.85), 0 0 28px rgba(236, 72, 153, 0.32), 0 0 14px rgba(56, 189, 248, 0.25)'
     : config.glowIntensity > 0
-    ? `0 0 0 1px rgba(255, 255, 255, 0.1), 0 16px 48px -6px rgba(0, 0, 0, 0.85), 0 0 ${Math.round(
+    ? `0 0 0 1px rgba(56, 189, 248, 0.35), 0 16px 48px -6px rgba(0, 0, 0, 0.85), 0 0 ${Math.round(
         config.glowIntensity * 0.4
       )}px -2px ${config.glowColor}${Math.round((config.glowIntensity / 100) * 160)
         .toString(16)
         .padStart(2, '0')}`
-    : '0 8px 32px rgba(0, 0, 0, 0.7)';
+    : '0 0 0 1px rgba(56, 189, 248, 0.35), 0 12px 36px -4px rgba(0, 0, 0, 0.85), 0 0 20px -2px rgba(56, 189, 248, 0.35)';
 
   // Drag and drop directly onto notch (Feat 10: Drop Shelf integration)
   const onDragOver = (e: React.DragEvent) => {
@@ -501,20 +454,98 @@ export const NotchRoot: React.FC = () => {
         }
       };
 
-  // Flexible notch placement classes (Feature 8)
-  const getPlacementClass = () => {
-    switch (config.placement) {
-      case 'top-left':
-        return 'fixed left-8 top-2 z-50 flex justify-start pointer-events-none select-none';
-      case 'top-right':
-        return 'fixed right-8 top-2 z-50 flex justify-end pointer-events-none select-none';
-      case 'left':
-        return 'fixed left-3 top-1/2 -translate-y-1/2 z-50 flex items-center pointer-events-none select-none';
-      case 'right':
-        return 'fixed right-3 top-1/2 -translate-y-1/2 z-50 flex items-center pointer-events-none select-none';
-      case 'top-center':
-      default:
-        return 'fixed left-0 right-0 top-2 z-50 flex justify-center pointer-events-none select-none';
+  // Screen bounds clamping and free positioning calculation
+  const defaultTop = config.topOffset || 12;
+  const defaultLeft = Math.max(8, Math.round((screenBounds.width - targetWidth) / 2));
+
+  const currentLeft = notchPosition ? notchPosition.x : defaultLeft;
+  const currentTop = notchPosition ? notchPosition.y : defaultTop;
+
+  const clampPos = (x: number, y: number, w: number, h: number) => {
+    const minX = 8;
+    const maxX = Math.max(minX, screenBounds.width - w - 8);
+    const minY = 8;
+    const maxY = Math.max(minY, screenBounds.height - h - 8);
+    return {
+      x: Math.max(minX, Math.min(maxX, x)),
+      y: Math.max(minY, Math.min(maxY, y))
+    };
+  };
+
+  const activePos = clampPos(
+    currentLeft,
+    currentTop,
+    targetWidth,
+    typeof targetHeight === 'number' ? targetHeight : 48
+  );
+
+  const [isDraggingNow, setIsDraggingNow] = useState<boolean>(false);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const notchStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const hasMovedRef = useRef<boolean>(false);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+
+    const target = e.target as HTMLElement;
+    // Don't drag when clicking controls, buttons, inputs, sliders, or links
+    if (
+      target.closest('button') ||
+      target.closest('input') ||
+      target.closest('select') ||
+      target.closest('textarea') ||
+      target.closest('a') ||
+      target.closest('[role="button"]') ||
+      target.closest('[role="slider"]') ||
+      target.closest('.interactive-control') ||
+      target.closest('.no-drag')
+    ) {
+      return;
+    }
+
+    pointerStartRef.current = { x: e.clientX, y: e.clientY };
+    notchStartRef.current = { x: activePos.x, y: activePos.y };
+    hasMovedRef.current = false;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {}
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!pointerStartRef.current) return;
+    const dx = e.clientX - pointerStartRef.current.x;
+    const dy = e.clientY - pointerStartRef.current.y;
+
+    if (!hasMovedRef.current && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) {
+      hasMovedRef.current = true;
+      setIsDraggingNow(true);
+    }
+
+    if (hasMovedRef.current) {
+      const rawX = notchStartRef.current.x + dx;
+      const rawY = notchStartRef.current.y + dy;
+      const clamped = clampPos(
+        rawX,
+        rawY,
+        targetWidth,
+        typeof targetHeight === 'number' ? targetHeight : 48
+      );
+      setNotchPosition({ x: clamped.x, y: clamped.y });
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!pointerStartRef.current) return;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {}
+
+    const wasDragging = hasMovedRef.current;
+    pointerStartRef.current = null;
+    setIsDraggingNow(false);
+
+    if (wasDragging) {
+      soundService.playTick();
     }
   };
 
@@ -540,18 +571,25 @@ export const NotchRoot: React.FC = () => {
         />
       )}
 
-      {/* 4. Dynamic Island Notch on Screen Edge */}
+      {/* 4. Dynamic Island Notch on Screen Edge (Free Drag Anywhere) */}
       <div
         id="nova-notch-container"
-        className={getPlacementClass()}
-        style={{ top: config.placement.startsWith('top') ? `${config.topOffset}px` : undefined }}
+        className="fixed z-50 pointer-events-none select-none transition-[left,top] duration-75 ease-out"
+        style={{
+          left: `${activePos.x}px`,
+          top: `${activePos.y}px`
+        }}
       >
-        {/* Invisible safe hover buffer with mouse shake listener */}
+        {/* Invisible safe buffer with drag handlers & mouse shake listener */}
         <div
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
           onMouseMove={handlePointerShake}
-          className="pointer-events-auto p-1.5 -m-1.5"
+          className={`pointer-events-auto p-1.5 -m-1.5 ${isDraggingNow ? 'cursor-grabbing' : 'cursor-default'}`}
         >
           {isDetached ? (
             /* Subtle Re-dock Capsule when Detached */
@@ -613,49 +651,6 @@ export const NotchRoot: React.FC = () => {
                   >
                     <NotchExpandedDashboard />
                   </motion.div>
-                ) : activeCall ? (
-                  <motion.div
-                    key={`call-${activeCall.id}-${activeCall.status}`}
-                    initial={{ opacity: 0, scale: 0.94 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.12 } }}
-                    transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                    className="w-full h-full flex items-center"
-                  >
-                    <IncomingCallNotchPill call={activeCall} onOpenNotch={expandNotch} />
-                  </motion.div>
-                ) : activeToast && shapeConfig ? (
-                  <motion.div
-                    key={`notification-${activeToast.id}`}
-                    initial={{ opacity: 0, scale: 0.94 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.1 } }}
-                    transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
-                    className="w-full h-full flex items-center"
-                  >
-                    <NotchNotificationPill
-                      toast={activeToast}
-                      shapeConfig={shapeConfig}
-                      totalStacked={toasts.length}
-                      onDismiss={dismissToast}
-                      onOpenNotch={handleOpenNotificationNotch}
-                    />
-                  </motion.div>
-                ) : isGreetingActive ? (
-                  <motion.div
-                    key={`greeting-${activeGreeting.startedAt}`}
-                    initial={{ opacity: 0, scale: 0.94 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.12 } }}
-                    transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                    className="w-full h-full flex items-center"
-                  >
-                    <PersonalizedGreetingBanner
-                      mode="compact"
-                      onOpenDashboard={expandNotch}
-                      onDismiss={() => greetingService.dismissGreeting()}
-                    />
-                  </motion.div>
                 ) : (
                   <motion.div
                     key="compact"
@@ -663,7 +658,7 @@ export const NotchRoot: React.FC = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.1 } }}
                     transition={{ duration: 0.18, delay: 0.04, ease: [0.16, 1, 0.3, 1] }}
-                    className="w-full h-full flex items-center"
+                    className="w-full h-full flex items-center justify-center"
                   >
                     <NotchCompactPill />
                   </motion.div>

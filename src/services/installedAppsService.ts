@@ -752,22 +752,47 @@ class InstalledAppsService {
       };
     }
 
-    // 2. Not running or launching fresh instance
+    // 1. Not running or launching fresh instance
     const displayName = app?.name || shortcut?.title || targetId;
     const protocol = app?.protocol || shortcut?.protocol;
     const exePath = app?.exePath || shortcut?.exePath || '';
     const isUrl = shortcut?.actionType === 'url' || (protocol && (protocol.startsWith('http://') || protocol.startsWith('https://')));
 
     try {
-      // If it's a URL or web shortcut, launch cleanly
+      // Step A: Invoke Native OS Process via Server Bridge (/api/launch-app)
+      try {
+        fetch('/api/launch-app', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: targetId,
+            name: displayName,
+            protocol,
+            exePath,
+            processName: app?.processName
+          })
+        }).catch(() => {});
+      } catch {}
+
+      // Step B: If running inside Tauri Native Windows App, invoke Tauri Shell
+      if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+        try {
+          const tauri = (window as any).__TAURI__;
+          if (tauri.invoke) {
+            tauri.invoke('launch_app', { app: targetId, protocol, exePath }).catch(() => {});
+          } else if (tauri.shell?.open) {
+            tauri.shell.open(protocol || exePath).catch(() => {});
+          }
+        } catch {}
+      }
+
+      // Step C: Trigger Registered Windows URI Protocol Handler (vscode://, microsoft-edge:, ms-settings:, etc.)
       if (isUrl) {
         const urlToOpen = protocol || exePath || shortcut?.target;
         if (urlToOpen && (urlToOpen.startsWith('http://') || urlToOpen.startsWith('https://'))) {
           window.open(urlToOpen, '_blank', 'noopener,noreferrer');
         }
       } else if (protocol && !protocol.startsWith('file://')) {
-        // Attempt system protocol launch (e.g. vscode://, spotify://, calculator:, ms-settings:)
-        // Using an invisible iframe or direct assignment prevents unwanted navigation
         try {
           const iframe = document.createElement('iframe');
           iframe.style.display = 'none';
@@ -783,28 +808,7 @@ class InstalledAppsService {
         }
       }
 
-      // 3. Register with windowActivityService if needed and launch window in desktop sandbox
-      if (!existingWinApp && app) {
-        windowActivityService.registerApp({
-          id: app.id,
-          name: app.name,
-          processName: app.processName,
-          iconName: app.iconName,
-          iconColor: app.iconColor,
-          category: app.category === 'developer' || app.category === 'media' || app.category === 'utility' || app.category === 'browser' || app.category === 'system'
-            ? app.category
-            : 'utility',
-          windowTitle: `${app.name} — Windows 11`,
-          status: 'closed',
-          cpuPercent: 1.2,
-          memoryMB: 180
-        });
-      }
-
-      // Trigger 3-stage Dynamic Notch choreography in Window Activity Service
-      const launched = windowActivityService.launchApp(targetId);
-
-      // Update last launched timestamp
+      // Step D: Update last launched timestamp
       if (app) {
         this.installedApps = this.installedApps.map((a) =>
           a.id === app?.id ? { ...a, lastLaunched: Date.now() } : a
@@ -812,23 +816,7 @@ class InstalledAppsService {
         this.saveState();
       }
 
-      if (!launched) {
-        // If app wasn't pre-registered in windowActivityService, create dynamic entry
-        const fallbackApp: WindowsApp = {
-          id: targetId,
-          name: displayName,
-          processName: app?.processName || `${displayName.replace(/\s+/g, '')}.exe`,
-          iconName: app?.iconName || shortcut?.icon || 'Code',
-          iconColor: app?.iconColor || shortcut?.iconColor || '#38BDF8',
-          category: 'utility',
-          windowTitle: `${displayName} — Windows 11`,
-          status: 'closed',
-          cpuPercent: 1.0,
-          memoryMB: 150
-        };
-        windowActivityService.registerApp(fallbackApp);
-        windowActivityService.launchApp(targetId);
-      }
+      soundService.playSuccess();
 
       return {
         success: true,

@@ -45,8 +45,8 @@ export const WindowsDesktop: React.FC = () => {
   const [timeStr, setTimeStr] = useState<string>('');
   const [dateStr, setDateStr] = useState<string>('');
   const [isStartOpen, setIsStartOpen] = useState<boolean>(false);
-  const [openApps, setOpenApps] = useState<string[]>(['vscode']); // Default VS Code open
-  const [foregroundAppId, setForegroundAppId] = useState<string | null>('vscode');
+  const [openApps, setOpenApps] = useState<string[]>([]); // Clean notch-first UI with no permanent windows
+  const [foregroundAppId, setForegroundAppId] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
   // Subscribe to window activity service

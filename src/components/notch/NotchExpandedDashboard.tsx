@@ -90,9 +90,12 @@ import { NotchNotificationsTab } from './NotchNotificationsTab';
 import { NotchAIHubTab } from './NotchAIHubTab';
 import { NotchActivitiesTab } from './NotchActivitiesTab';
 import { PersonalizedGreetingBanner } from './PersonalizedGreetingBanner';
+import { BluetoothView } from './views/BluetoothView';
+import { bluetoothService } from '../../services/bluetoothService';
 
 type SubViewType =
   | null
+  | 'bluetooth'
   | 'clipboard'
   | 'shelf'
   | 'time'
@@ -131,11 +134,21 @@ export const NotchExpandedDashboard: React.FC = () => {
     dropShelfFiles,
     eyesOnlyMode,
     toggleEyesOnlyMode,
-    setEyesOnlyMode
+    setEyesOnlyMode,
+    resetNotchPosition,
+    isCustomPositioned
   } = useNotch();
 
   // Active SubView (null means default compact 2-column floating dashboard)
   const [activeSubView, setActiveSubView] = useState<SubViewType>(null);
+  const [btDevices, setBtDevices] = useState(bluetoothService.getDevices());
+
+  useEffect(() => {
+    const unsubBt = bluetoothService.subscribe(() => {
+      setBtDevices(bluetoothService.getDevices());
+    });
+    return unsubBt;
+  }, []);
 
   // Modals
   const [isQuickAppsOpen, setIsQuickAppsOpen] = useState<boolean>(false);
@@ -405,26 +418,25 @@ export const NotchExpandedDashboard: React.FC = () => {
             <Sliders className="w-3.5 h-3.5" />
           </button>
 
-          {/* 4. Bluetooth */}
+          {/* 4. Bluetooth Panel */}
           <button
             onClick={() => {
-              const next = !bluetoothActive;
-              setBluetoothActive(next);
+              setActiveSubView(activeSubView === 'bluetooth' ? null : 'bluetooth');
               soundService.playTick();
-              showToast({
-                appName: 'Bluetooth',
-                title: next ? 'Bluetooth Connected' : 'Bluetooth Disabled',
-                message: next ? 'Ready for paired peripherals' : 'Radio powered off',
-                icon: 'Bluetooth',
-                duration: 1800
-              });
             }}
-            className={`p-1 transition-colors cursor-pointer ${
-              bluetoothActive ? 'text-indigo-400 hover:text-indigo-300' : 'text-slate-500'
+            className={`p-1 relative transition-colors cursor-pointer ${
+              activeSubView === 'bluetooth'
+                ? 'text-sky-300 bg-sky-500/20 rounded-md'
+                : btDevices.some((d) => d.status === 'connected')
+                ? 'text-sky-400 hover:text-sky-300'
+                : 'text-slate-400 hover:text-white'
             }`}
-            title={bluetoothActive ? 'Bluetooth is ON' : 'Bluetooth is OFF'}
+            title={`Bluetooth Device Hub (${btDevices.filter((d) => d.status === 'connected').length} connected)`}
           >
             <Bluetooth className="w-3.5 h-3.5" />
+            {btDevices.some((d) => d.status === 'connected') && (
+              <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-sky-400 shadow-[0_0_4px_#38bdf8] animate-pulse" />
+            )}
           </button>
 
           {/* 5. Smartphone Link & Live Notifications */}
@@ -571,6 +583,17 @@ export const NotchExpandedDashboard: React.FC = () => {
             {isPinned ? <Pin className="w-3.5 h-3.5 fill-sky-400" /> : <Pin className="w-3.5 h-3.5" />}
           </button>
 
+          {/* Reset Position (Free Drag & Snap) */}
+          <button
+            onClick={resetNotchPosition}
+            className={`p-1 rounded-md transition-colors cursor-pointer ${
+              isCustomPositioned ? 'text-sky-400 hover:text-sky-300 bg-sky-500/10' : 'text-slate-400 hover:text-white'
+            }`}
+            title="Reset Notch Position to Top-Center"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+
           {/* Settings */}
           <button
             onClick={() => setActiveSubView('settings')}
@@ -608,7 +631,9 @@ export const NotchExpandedDashboard: React.FC = () => {
               <span>Back to Dashboard</span>
             </button>
             <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-              {activeSubView === 'clipboard'
+              {activeSubView === 'bluetooth'
+                ? 'Bluetooth Devices & Peripherals'
+                : activeSubView === 'clipboard'
                 ? 'Clipboard Pro'
                 : activeSubView === 'shelf'
                 ? 'Drop Shelf & NOVA Drop'
@@ -643,6 +668,7 @@ export const NotchExpandedDashboard: React.FC = () => {
             onWheel={(e) => e.stopPropagation()}
             className="flex-1 min-h-0 overflow-y-auto notch-dashboard-scroll scroll-smooth overscroll-contain pr-1"
           >
+            {activeSubView === 'bluetooth' && <BluetoothView />}
             {activeSubView === 'clipboard' && <ClipboardView />}
             {activeSubView === 'shelf' && <DropShelfView />}
             {activeSubView === 'time' && <TimeAnalyticsView />}

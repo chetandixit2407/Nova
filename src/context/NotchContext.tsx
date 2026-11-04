@@ -33,7 +33,7 @@ const DEFAULT_CONFIG: NotchConfig = {
   glowIntensity: 50,
   glowColor: '#38bdf8',
   hoverExpansion: true,
-  graceDelay: 800,
+  graceDelay: 240,
   soundEnabled: true,
   soundVolume: 0.5,
   animationSpeed: 'fluid',
@@ -266,6 +266,10 @@ interface NotchContextValue {
   eyesOnlyMode: boolean;
   setEyesOnlyMode: (val: boolean) => void;
   toggleEyesOnlyMode: () => void;
+  notchPosition: { x: number; y: number } | null;
+  setNotchPosition: (pos: { x: number; y: number } | null) => void;
+  resetNotchPosition: () => void;
+  isCustomPositioned: boolean;
 }
 
 const NotchContext = createContext<NotchContextValue | null>(null);
@@ -277,12 +281,11 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const saved = localStorage.getItem('nova_notch_config');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.graceDelay > 160 || parsed.graceDelay === undefined) parsed.graceDelay = 120;
-        return { ...DEFAULT_CONFIG, ...parsed };
+        return { ...DEFAULT_CONFIG, ...parsed, hoverExpansion: true, graceDelay: 240 };
       }
-      return DEFAULT_CONFIG;
+      return { ...DEFAULT_CONFIG, hoverExpansion: true, graceDelay: 240 };
     } catch {
-      return DEFAULT_CONFIG;
+      return { ...DEFAULT_CONFIG, hoverExpansion: true, graceDelay: 240 };
     }
   });
 
@@ -474,6 +477,33 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     updateConfig({ compactWidth, compactHeight });
   }, [updateConfig]);
 
+  // Dynamic Free-floating screen coordinates (draggable anywhere, persisted in localStorage)
+  const [notchPosition, setNotchPositionState] = useState<{ x: number; y: number } | null>(() => {
+    try {
+      const saved = localStorage.getItem('nova_notch_position');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+          return parsed;
+        }
+      }
+    } catch {}
+    return null;
+  });
+
+  const setNotchPosition = useCallback((pos: { x: number; y: number } | null) => {
+    setNotchPositionState(pos);
+    if (pos) {
+      try {
+        localStorage.setItem('nova_notch_position', JSON.stringify(pos));
+      } catch {}
+    } else {
+      try {
+        localStorage.removeItem('nova_notch_position');
+      } catch {}
+    }
+  }, []);
+
   // Global Keyboard Shortcuts (Ctrl+Alt+H for Invisibility Cloak, Escape to dismiss)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -627,16 +657,17 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       clearTimeout(collapseTimerRef.current);
       collapseTimerRef.current = null;
     }
-    if (config.hoverExpansion && !isExpanded) {
-      if (hoverOpenTimerRef.current) clearTimeout(hoverOpenTimerRef.current);
-      // Small 75ms dwell check to prevent accidental rapid sweep opens
-      hoverOpenTimerRef.current = window.setTimeout(() => {
-        if (isHoveredRef.current && !isExpanded) {
-          expandNotch();
-        }
-      }, 75);
+    if (hoverOpenTimerRef.current) {
+      clearTimeout(hoverOpenTimerRef.current);
+      hoverOpenTimerRef.current = null;
     }
-  }, [config.hoverExpansion, isExpanded, expandNotch]);
+    // Anti-flicker delay of 60ms: expands smoothly when cursor enters notch
+    hoverOpenTimerRef.current = window.setTimeout(() => {
+      if (isHoveredRef.current) {
+        expandNotch();
+      }
+    }, 60);
+  }, [expandNotch]);
 
   const handleMouseLeave = useCallback(() => {
     isHoveredRef.current = false;
@@ -648,15 +679,16 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (collapseTimerRef.current) {
       clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current = null;
     }
 
-    // Comfortable grace period (min 750ms) so moving mouse into dashboard never drops, collapsing smoothly when inactive
+    // Grace delay of 240ms so moving cursor between notch and app shortcuts never collapses prematurely
     collapseTimerRef.current = window.setTimeout(() => {
       if (!isHoveredRef.current && !isPinned) {
         collapseNotch();
       }
-    }, Math.max(config.graceDelay || 750, 750));
-  }, [isPinned, config.graceDelay, collapseNotch]);
+    }, 240);
+  }, [isPinned, collapseNotch]);
 
   // Tasks actions
   const addTask = useCallback((task: Omit<LiveTask, 'id'>) => {
@@ -774,6 +806,18 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const clearAllToasts = useCallback(() => {
     setToasts([]);
   }, []);
+
+  const resetNotchPosition = useCallback(() => {
+    setNotchPosition(null);
+    soundService.play('notch_collapse');
+    showToast({
+      appName: 'NOVA Island',
+      title: 'Position Reset',
+      message: 'Restored to original top-center position',
+      icon: 'RotateCcw',
+      duration: 1600
+    });
+  }, [setNotchPosition, showToast]);
 
   // Real-time phone notification subscription
   useEffect(() => {
@@ -1151,7 +1195,11 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setDimensions,
         eyesOnlyMode,
         setEyesOnlyMode,
-        toggleEyesOnlyMode
+        toggleEyesOnlyMode,
+        notchPosition,
+        setNotchPosition,
+        resetNotchPosition,
+        isCustomPositioned: notchPosition !== null
       }}
     >
       {children}

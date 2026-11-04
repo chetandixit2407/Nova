@@ -7,6 +7,7 @@ import { NotchNotificationPill } from './NotchNotificationPill';
 import { InvisibilityCloakOverlay } from './InvisibilityCloakOverlay';
 import { FullscreenMusicModal } from './FullscreenMusicModal';
 import { DetachedNotchWidget } from './DetachedNotchWidget';
+import { EdgeLightRing } from './EdgeLightRing';
 import { getNotificationShapeConfig } from '../../utils/notchShapeHelper';
 import { systemService } from '../../services/systemService';
 import { audioEngine } from '../../services/audioEngine';
@@ -48,6 +49,10 @@ export const NotchRoot: React.FC = () => {
   const expandedContentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState<number>(510);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(false);
+  const [screenBounds, setScreenBounds] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 1920,
+    height: typeof window !== 'undefined' ? window.innerHeight : 1080
+  });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -55,7 +60,19 @@ export const NotchRoot: React.FC = () => {
     setPrefersReducedMotion(mql.matches);
     const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
     mql.addEventListener('change', handler);
-    return () => mql.removeEventListener('change', handler);
+
+    const handleResize = () => {
+      setScreenBounds({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      mql.removeEventListener('change', handler);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   useEffect(() => {
@@ -139,39 +156,46 @@ export const NotchRoot: React.FC = () => {
   const activeToast = !isExpanded && toasts.length > 0 ? toasts[0] : null;
   const shapeConfig = activeToast ? getNotificationShapeConfig(activeToast) : null;
 
-  // Custom notch dimensions (Feature 9):
-  // Collapsed length: 100–340px, thickness: 28–72px
-  const baseCompactWidth = Math.max(100, Math.min(340, config.compactWidth || 220));
-  const baseCompactHeight = Math.max(28, Math.min(72, config.compactHeight || 38));
+  // Collapsed size target: approximately 320–360px wide and 38px high
+  const baseCompactWidth = Math.max(300, Math.min(380, config.compactWidth || 340));
+  const baseCompactHeight = Math.max(36, Math.min(42, config.compactHeight || 38));
+  const responsiveCompactWidth = Math.min(baseCompactWidth, screenBounds.width - 24);
+
+  // Expanded size target: approximately 600–640px wide and 320–350px high
+  const maxAllowedWidth = Math.min(620, screenBounds.width - 24);
+  const maxAllowedHeight = Math.min(
+    Math.max(315, contentHeight || 335),
+    Math.min(375, screenBounds.height - 24)
+  );
 
   const targetWidth = isExpanded
-    ? Math.min(Math.max(config.expandedWidth, 680), typeof window !== 'undefined' ? Math.max(340, window.innerWidth - 32) : 680)
+    ? maxAllowedWidth
     : shapeConfig
-    ? shapeConfig.width
+    ? Math.min(shapeConfig.width, screenBounds.width - 24)
     : launchStage === 'pop'
-    ? 72
+    ? 68
     : launchStage === 'compact'
-    ? Math.max(baseCompactWidth, 240)
+    ? Math.max(responsiveCompactWidth, 240)
     : launchStage === 'expanded'
-    ? 360
+    ? Math.min(maxAllowedWidth, screenBounds.width - 24)
     : isCompleting
-    ? 225
+    ? 260
     : showLiveActivities && activeActivitiesCount >= 2
-    ? Math.max(baseCompactWidth, 295)
+    ? Math.max(responsiveCompactWidth, Math.min(360, screenBounds.width - 24))
     : showLiveActivities && (activeActivitiesCount === 1 || Boolean(foregroundApp))
-    ? Math.max(baseCompactWidth, 245)
-    : baseCompactWidth;
+    ? Math.max(responsiveCompactWidth, Math.min(340, screenBounds.width - 24))
+    : responsiveCompactWidth;
 
   const targetHeight = isExpanded
-    ? Math.max(460, contentHeight || 510)
+    ? maxAllowedHeight
     : shapeConfig
     ? shapeConfig.height
     : launchStage === 'pop'
-    ? 44
+    ? 40
     : launchStage === 'compact'
     ? baseCompactHeight
     : launchStage === 'expanded'
-    ? 96
+    ? 90
     : baseCompactHeight;
 
   // Synchronize Tauri native window bounds and top-center positioning with zero resize flicker
@@ -181,16 +205,14 @@ export const NotchRoot: React.FC = () => {
   }, [isExpanded, targetWidth, targetHeight]);
 
   const targetCornerRadius = isExpanded
-    ? config.cornerRadius
+    ? 24
     : shapeConfig
     ? shapeConfig.cornerRadius
     : launchStage === 'pop'
     ? 22
     : launchStage === 'expanded'
     ? 24
-    : showLiveActivities && activeActivitiesCount > 0
-    ? config.cornerRadius
-    : Math.min(config.cornerRadius, Math.floor(baseCompactHeight / 2));
+    : 20;
 
   // Theme styling (Including all 5 Pro Appearance Themes)
   const getThemeStyles = () => {
@@ -364,34 +386,34 @@ export const NotchRoot: React.FC = () => {
     setActiveTab('notifications');
   };
 
-  // Precision spring physics configuration for 60fps fluid morphing
+  // Precision Apple Dynamic Island spring physics configuration for 60fps fluid morphing
   const morphSpringTransition = prefersReducedMotion
     ? { duration: 0.01 }
     : {
         width: {
           type: 'spring' as const,
-          stiffness: 480,
-          damping: 32,
+          stiffness: 420,
+          damping: 34,
           mass: 0.48,
-          restDelta: 0.05
+          restDelta: 0.01
         },
         height: {
           type: 'spring' as const,
-          stiffness: 480,
-          damping: 32,
+          stiffness: 420,
+          damping: 34,
           mass: 0.48,
-          restDelta: 0.05
+          restDelta: 0.01
         },
         borderRadius: {
           type: 'spring' as const,
-          stiffness: 440,
-          damping: 28,
-          mass: 0.46,
-          restDelta: 0.05
+          stiffness: 420,
+          damping: 34,
+          mass: 0.48,
+          restDelta: 0.01
         },
         scale: {
           type: 'spring' as const,
-          stiffness: 520,
+          stiffness: 450,
           damping: 30
         }
       };
@@ -480,6 +502,9 @@ export const NotchRoot: React.FC = () => {
               }}
               className="relative overflow-hidden transition-[box-shadow,border-color,background-color] duration-150"
             >
+              {/* Ambient dynamic edge light ring */}
+              <EdgeLightRing borderRadius={targetCornerRadius} />
+
               {/* Subtle glass sheen on top edge */}
               <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none" />
 
@@ -492,15 +517,15 @@ export const NotchRoot: React.FC = () => {
               )}
 
               {/* Fluid content morphing */}
-              <AnimatePresence mode="wait" initial={false}>
+              <AnimatePresence mode="popLayout" initial={false}>
                 {isExpanded ? (
                   <motion.div
                     ref={expandedContentRef}
                     key="expanded"
-                    initial={{ opacity: 0, y: -4, scale: 0.985 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -4, scale: 0.985 }}
-                    transition={{ duration: 0.12, ease: [0.16, 1, 0.3, 1] }}
+                    initial={{ opacity: 0, y: -6, filter: 'blur(3px)' }}
+                    animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                    exit={{ opacity: 0, y: -6, filter: 'blur(3px)', transition: { duration: 0.12 } }}
+                    transition={{ duration: 0.22, delay: 0.03, ease: [0.16, 1, 0.3, 1] }}
                     className="w-full flex flex-col"
                   >
                     <NotchExpandedDashboard />
@@ -510,8 +535,8 @@ export const NotchRoot: React.FC = () => {
                     key={`notification-${activeToast.id}`}
                     initial={{ opacity: 0, scale: 0.94 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.94 }}
-                    transition={{ duration: 0.1, ease: [0.16, 1, 0.3, 1] }}
+                    exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.1 } }}
+                    transition={{ duration: 0.14, ease: [0.16, 1, 0.3, 1] }}
                     className="w-full h-full flex items-center"
                   >
                     <NotchNotificationPill
@@ -525,10 +550,10 @@ export const NotchRoot: React.FC = () => {
                 ) : (
                   <motion.div
                     key="compact"
-                    initial={{ opacity: 0, scale: 0.96 }}
+                    initial={{ opacity: 0, scale: 0.92 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.96 }}
-                    transition={{ duration: 0.09, ease: [0.16, 1, 0.3, 1] }}
+                    exit={{ opacity: 0, scale: 0.92, transition: { duration: 0.1 } }}
+                    transition={{ duration: 0.18, delay: 0.04, ease: [0.16, 1, 0.3, 1] }}
                     className="w-full h-full flex items-center"
                   >
                     <NotchCompactPill />

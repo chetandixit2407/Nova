@@ -20,19 +20,19 @@ import { audioEngine } from '../services/audioEngine';
 
 const DEFAULT_CONFIG: NotchConfig = {
   theme: 'midnight',
-  compactWidth: 220,
+  compactWidth: 340,
   compactHeight: 38,
-  expandedWidth: 680,
+  expandedWidth: 620,
   cornerRadius: 24,
   topOffset: 8,
   placement: 'top-center',
   isDetached: false,
-  opacity: 0.94,
+  opacity: 0.96,
   blur: 24,
-  glowIntensity: 65,
+  glowIntensity: 50,
   glowColor: '#38bdf8',
   hoverExpansion: true,
-  graceDelay: 120,
+  graceDelay: 800,
   soundEnabled: true,
   soundVolume: 0.5,
   animationSpeed: 'fluid',
@@ -352,7 +352,7 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const saved = localStorage.getItem('nova_view_mode');
       if (saved === 'desktop' || saved === 'overlay') return saved;
     } catch {}
-    return 'overlay';
+    return 'desktop';
   });
 
   const setViewMode = useCallback((mode: 'desktop' | 'overlay') => {
@@ -488,13 +488,13 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       case 'dynamic_classic':
         patch = {
           theme: 'midnight',
-          compactWidth: 210,
-          compactHeight: 38,
-          expandedWidth: 680,
-          cornerRadius: 22,
-          glowIntensity: 60,
+          compactWidth: 200,
+          compactHeight: 36,
+          expandedWidth: 380,
+          cornerRadius: 20,
+          glowIntensity: 50,
           glowColor: '#38bdf8',
-          opacity: 0.95,
+          opacity: 0.96,
           blur: 24,
           animationSpeed: 'fluid'
         };
@@ -502,13 +502,13 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       case 'windows_fluent':
         patch = {
           theme: 'windows-mica',
-          compactWidth: 250,
-          compactHeight: 40,
-          expandedWidth: 680,
+          compactWidth: 210,
+          compactHeight: 38,
+          expandedWidth: 390,
           cornerRadius: 18,
           glowIntensity: 45,
           glowColor: '#818cf8',
-          opacity: 0.9,
+          opacity: 0.92,
           blur: 32,
           animationSpeed: 'fluid'
         };
@@ -516,11 +516,11 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       case 'cyber_stealth':
         patch = {
           theme: 'cyber-glow',
-          compactWidth: 230,
+          compactWidth: 200,
           compactHeight: 36,
-          expandedWidth: 660,
+          expandedWidth: 380,
           cornerRadius: 14,
-          glowIntensity: 85,
+          glowIntensity: 75,
           glowColor: '#10b981',
           opacity: 0.98,
           blur: 16,
@@ -530,10 +530,10 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       case 'compact_dot':
         patch = {
           theme: 'oled-stealth',
-          compactWidth: 160,
+          compactWidth: 175,
           compactHeight: 34,
-          expandedWidth: 640,
-          cornerRadius: 20,
+          expandedWidth: 360,
+          cornerRadius: 18,
           glowIntensity: 20,
           glowColor: '#ffffff',
           opacity: 1.0,
@@ -637,12 +637,12 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       clearTimeout(collapseTimerRef.current);
     }
 
-    // Comfortable grace period (min 200ms) so mouse movement into panels never drops
+    // Comfortable grace period (min 750ms) so moving mouse into dashboard never drops, collapsing smoothly when inactive
     collapseTimerRef.current = window.setTimeout(() => {
       if (!isHoveredRef.current && !isPinned) {
         collapseNotch();
       }
-    }, Math.max(config.graceDelay || 120, 200));
+    }, Math.max(config.graceDelay || 750, 750));
   }, [isPinned, config.graceDelay, collapseNotch]);
 
   // Tasks actions

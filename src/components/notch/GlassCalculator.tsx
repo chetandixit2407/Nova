@@ -91,61 +91,50 @@ export const GlassCalculator: React.FC<GlassCalculatorProps> = ({ onClose }) => 
   };
 
   return (
-    <div className="w-full bg-black/40 border border-white/10 rounded-2xl p-4 backdrop-blur-xl">
-      <div className="flex items-center justify-between mb-3 pb-2 border-b border-white/10">
-        <div className="flex items-center gap-2">
+    <div className="w-full h-full flex flex-col justify-between">
+      {/* Screen Display */}
+      <div className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-2.5 py-1 text-right mb-1">
+        <div className="flex items-center gap-1.5">
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-              title="Back to Dashboard"
+              className="p-0.5 rounded text-slate-400 hover:text-white transition-colors cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowLeft className="w-3 h-3 text-sky-400" />
             </button>
           )}
-          <span className="text-xs font-bold text-white tracking-tight">Windows Quick Calculator</span>
+          <span className="text-[10px] font-mono text-slate-400">
+            {prevValue !== null && operator ? `${prevValue} ${operator}` : 'Calc'}
+          </span>
         </div>
-        <button
-          onClick={clearAll}
-          className="text-[10px] font-mono text-sky-400 hover:text-sky-300 px-2 py-0.5 rounded bg-sky-500/10 cursor-pointer"
-        >
-          CLEAR ALL
-        </button>
-      </div>
-
-      {/* Screen Display */}
-      <div className="bg-white/5 border border-white/10 rounded-xl p-3 mb-3 text-right">
-        <div className="text-[10px] font-mono text-slate-400 h-4">
-          {prevValue !== null && operator ? `${prevValue} ${operator}` : ''}
-        </div>
-        <div className="text-2xl font-mono font-bold text-white tracking-wider truncate">
+        <div className="text-sm font-mono font-bold text-white tracking-wider truncate">
           {display}
         </div>
       </div>
 
       {/* Calculator Buttons Grid */}
-      <div className="grid grid-cols-4 gap-2 text-xs font-mono">
+      <div className="grid grid-cols-4 gap-1 text-[11px] font-mono">
         <button
           onClick={clearAll}
-          className="py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-rose-300 font-semibold transition-colors cursor-pointer"
+          className="py-1 rounded-lg bg-white/5 hover:bg-white/10 text-rose-300 font-semibold cursor-pointer"
         >
           C
         </button>
         <button
           onClick={handleBackspace}
-          className="py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 flex items-center justify-center transition-colors cursor-pointer"
+          className="py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 flex items-center justify-center cursor-pointer"
         >
-          <Delete className="w-3.5 h-3.5" />
+          <Delete className="w-3 h-3" />
         </button>
         <button
           onClick={() => performOperation('%')}
-          className="py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-sky-400 font-semibold transition-colors cursor-pointer"
+          className="py-1 rounded-lg bg-white/5 hover:bg-white/10 text-sky-400 font-semibold cursor-pointer"
         >
           %
         </button>
         <button
           onClick={() => performOperation('÷')}
-          className="py-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold transition-colors cursor-pointer"
+          className="py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold cursor-pointer"
         >
           ÷
         </button>
@@ -154,14 +143,14 @@ export const GlassCalculator: React.FC<GlassCalculatorProps> = ({ onClose }) => 
           <button
             key={n}
             onClick={() => inputDigit(n)}
-            className="py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white font-medium transition-colors cursor-pointer"
+            className="py-1 rounded-lg bg-white/[0.04] hover:bg-white/10 text-white font-medium transition-colors cursor-pointer"
           >
             {n}
           </button>
         ))}
         <button
           onClick={() => performOperation('×')}
-          className="py-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold transition-colors cursor-pointer"
+          className="py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold transition-colors cursor-pointer"
         >
           ×
         </button>
@@ -170,14 +159,14 @@ export const GlassCalculator: React.FC<GlassCalculatorProps> = ({ onClose }) => 
           <button
             key={n}
             onClick={() => inputDigit(n)}
-            className="py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white font-medium transition-colors cursor-pointer"
+            className="py-1 rounded-lg bg-white/[0.04] hover:bg-white/10 text-white font-medium transition-colors cursor-pointer"
           >
             {n}
           </button>
         ))}
         <button
           onClick={() => performOperation('-')}
-          className="py-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold transition-colors cursor-pointer"
+          className="py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold transition-colors cursor-pointer"
         >
           −
         </button>
@@ -186,14 +175,14 @@ export const GlassCalculator: React.FC<GlassCalculatorProps> = ({ onClose }) => 
           <button
             key={n}
             onClick={() => inputDigit(n)}
-            className="py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white font-medium transition-colors cursor-pointer"
+            className="py-1 rounded-lg bg-white/[0.04] hover:bg-white/10 text-white font-medium transition-colors cursor-pointer"
           >
             {n}
           </button>
         ))}
         <button
           onClick={() => performOperation('+')}
-          className="py-2.5 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold transition-colors cursor-pointer"
+          className="py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold transition-colors cursor-pointer"
         >
           +
         </button>
@@ -206,13 +195,13 @@ export const GlassCalculator: React.FC<GlassCalculatorProps> = ({ onClose }) => 
         </button>
         <button
           onClick={inputDot}
-          className="py-2.5 rounded-xl bg-white/[0.04] hover:bg-white/10 text-white font-medium transition-colors cursor-pointer"
+          className="py-1 rounded-lg bg-white/[0.04] hover:bg-white/10 text-white font-medium transition-colors cursor-pointer"
         >
           .
         </button>
         <button
           onClick={() => performOperation('=')}
-          className="py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold flex items-center justify-center transition-colors cursor-pointer shadow-md"
+          className="py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold flex items-center justify-center transition-colors cursor-pointer shadow-md"
         >
           <Equal className="w-4 h-4" />
         </button>

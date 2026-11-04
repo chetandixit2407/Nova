@@ -342,22 +342,39 @@ class SystemService {
     };
   }
 
+  private syncWindowTimeout: number | null = null;
+
   /**
    * Synchronize native Tauri window size & position with React animation state
-   * Prevents resize flicker and guarantees top-center anchoring on Windows
+   * Prevents resize flicker, avoids clipping during collapse, and guarantees top-center anchoring on Windows
    */
-  public async syncNativeWindow(isExpanded: boolean, width: number, height: number): Promise<void> {
-    try {
-      const tauri = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__;
-      if (tauri && typeof tauri.invoke === 'function') {
-        await tauri.invoke('sync_notch_window', {
-          isExpanded,
-          width: Math.round(width),
-          height: Math.round(height)
-        });
-      }
-    } catch {
-      // In web browser preview or if command not ready, noop silently
+  public syncNativeWindow(isExpanded: boolean, width: number, height: number): void {
+    if (this.syncWindowTimeout) {
+      clearTimeout(this.syncWindowTimeout);
+      this.syncWindowTimeout = null;
+    }
+
+    const tauri = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__;
+    if (!tauri || typeof tauri.invoke !== 'function') return;
+
+    if (isExpanded) {
+      // Immediately size native window up so the expanding spring animation has full canvas to bloom
+      tauri.invoke('sync_notch_window', {
+        isExpanded: true,
+        width: Math.round(width),
+        height: Math.round(height + 12)
+      }).catch(() => {});
+    } else {
+      // When collapsing, wait for the spring collapse animation to settle (~360ms)
+      // before shrinking the native window, preventing abrupt clipping or flicker
+      this.syncWindowTimeout = window.setTimeout(() => {
+        tauri.invoke('sync_notch_window', {
+          isExpanded: false,
+          width: Math.round(width + 12),
+          height: Math.round(height + 10)
+        }).catch(() => {});
+        this.syncWindowTimeout = null;
+      }, 360);
     }
   }
 }

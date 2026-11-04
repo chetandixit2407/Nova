@@ -35,10 +35,16 @@ fn trigger_haptic_feedback(feedback_type: String) -> Result<(), String> {
 fn sync_notch_window(app: tauri::AppHandle, is_expanded: bool, width: u32, height: u32) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
         if let Ok(Some(monitor)) = window.current_monitor() {
+            let scale_factor = monitor.scale_factor();
             let screen_size = monitor.size();
-            let x = ((screen_size.width as i32) - (width as i32)) / 2;
-            let _ = window.set_position(Position::Physical(PhysicalPosition { x, y: 0 }));
-            let _ = window.set_size(Size::Physical(PhysicalSize { width, height }));
+            let monitor_pos = monitor.position();
+            // Convert logical CSS dimensions from frontend to physical screen pixels based on Windows DPI
+            let phys_w = (width as f64 * scale_factor).round() as u32;
+            let phys_h = (height as f64 * scale_factor).round() as u32;
+            let x = monitor_pos.x + ((screen_size.width as i32) - (phys_w as i32)) / 2;
+            let y = monitor_pos.y;
+            let _ = window.set_size(Size::Physical(PhysicalSize { width: phys_w, height: phys_h }));
+            let _ = window.set_position(Position::Physical(PhysicalPosition { x, y }));
         }
         let _ = window.set_always_on_top(true);
         let _ = is_expanded;
@@ -125,15 +131,21 @@ fn main() {
                 })
                 .build(app)?;
 
-            // Apply Windows 11 top-center positioning and always-on-top behavior
+            // Apply Windows 11 top-center positioning, compact initial bounds and always-on-top behavior
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_always_on_top(true);
                 if let Ok(Some(monitor)) = window.current_monitor() {
                     let screen_size = monitor.size();
-                    if let Ok(win_size) = window.outer_size() {
-                        let x = ((screen_size.width as i32) - (win_size.width as i32)) / 2;
-                        let _ = window.set_position(Position::Physical(PhysicalPosition { x, y: 0 }));
-                    }
+                    let scale_factor = monitor.scale_factor();
+                    let monitor_pos = monitor.position();
+                    let initial_logical_w = 210.0;
+                    let initial_logical_h = 42.0;
+                    let phys_w = (initial_logical_w * scale_factor).round() as u32;
+                    let phys_h = (initial_logical_h * scale_factor).round() as u32;
+                    let x = monitor_pos.x + ((screen_size.width as i32) - (phys_w as i32)) / 2;
+                    let y = monitor_pos.y;
+                    let _ = window.set_size(Size::Physical(PhysicalSize { width: phys_w, height: phys_h }));
+                    let _ = window.set_position(Position::Physical(PhysicalPosition { x, y }));
                 }
             }
 

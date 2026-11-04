@@ -197,8 +197,8 @@ export const NotchSettingsTab: React.FC = () => {
             </div>
             <input
               type="range"
-              min={100}
-              max={340}
+              min={180}
+              max={240}
               value={config.compactWidth}
               onChange={(e) => updateConfig({ compactWidth: parseInt(e.target.value), notchPreset: 'custom' })}
               className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-sky-400"
@@ -212,8 +212,8 @@ export const NotchSettingsTab: React.FC = () => {
             </div>
             <input
               type="range"
-              min={28}
-              max={72}
+              min={32}
+              max={42}
               value={config.compactHeight}
               onChange={(e) => updateConfig({ compactHeight: parseInt(e.target.value), notchPreset: 'custom' })}
               className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-sky-400"
@@ -227,8 +227,8 @@ export const NotchSettingsTab: React.FC = () => {
             </div>
             <input
               type="range"
-              min={440}
-              max={760}
+              min={320}
+              max={420}
               value={config.expandedWidth}
               onChange={(e) => updateConfig({ expandedWidth: parseInt(e.target.value), notchPreset: 'custom' })}
               className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-sky-400"

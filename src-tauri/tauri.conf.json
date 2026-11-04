@@ -14,14 +14,14 @@
       {
         "title": "NOVA — Windows Smart Notch",
         "label": "main",
-        "width": 720,
-        "height": 560,
-        "resizable": false,
+        "width": 210,
+        "height": 42,
+        "resizable": true,
         "fullscreen": false,
         "transparent": true,
         "decorations": false,
         "alwaysOnTop": true,
-        "skipTaskbar": false,
+        "skipTaskbar": true,
         "center": false,
         "y": 0,
         "shadow": false

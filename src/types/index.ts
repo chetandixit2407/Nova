@@ -269,4 +269,87 @@ export interface AppVolumeSession {
   isMuted: boolean;
 }
 
+// Pro 14: Screen-Time & App Analytics
+export interface AppUsageStat {
+  appId: string;
+  appName: string;
+  category: 'code' | 'browser' | 'terminal' | 'media' | 'utility' | 'other';
+  secondsToday: number;
+  secondsWeekly: number;
+  percentage: number;
+  color: string;
+}
+
+export interface ScreenTimeReport {
+  totalSecondsToday: number;
+  totalSecondsWeekly: number;
+  productivityScore: number; // 0 to 100
+  mostUsedApp: string;
+  isPaused: boolean;
+  history: AppUsageStat[];
+}
+
+// Pro 15: Calendar, Events & Reminders
+export interface ReminderItem {
+  id: string;
+  title: string;
+  timeStr: string;
+  timestamp: number;
+  completed: boolean;
+  recurrence?: 'none' | 'daily' | 'weekly' | 'weekdays';
+  category: 'work' | 'personal' | 'health' | 'urgent';
+}
+
+export interface CalendarEventItem {
+  id: string;
+  title: string;
+  dateStr: string;
+  timeStr: string;
+  location?: string;
+  isHoliday?: boolean;
+}
+
+// Pro 16: Notes & Checklists
+export interface QuickNoteItem {
+  id: string;
+  title: string;
+  content: string;
+  color: string; // hex
+  category: string;
+  isPinned: boolean;
+  isChecklist?: boolean;
+  checklist?: { id: string; text: string; done: boolean }[];
+  updatedAt: number;
+}
+
+// Pro 17: World Clocks
+export interface WorldClockItem {
+  id: string;
+  city: string;
+  country: string;
+  timezone: string;
+  offsetHours: number;
+}
+
+// Pro 18: NOVA Drop (Wireless Peer-to-Peer local file transfer)
+export interface NovaDropDevice {
+  id: string;
+  name: string;
+  type: 'phone' | 'desktop' | 'tablet';
+  paired: boolean;
+  lastActive: number;
+}
+
+export interface NovaDropTransferItem {
+  id: string;
+  filename: string;
+  size: number;
+  direction: 'send' | 'receive';
+  progress: number; // 0 to 100
+  status: 'pending' | 'transferring' | 'completed' | 'rejected' | 'failed';
+  peerDeviceName: string;
+  blobUrl?: string;
+}
+
+
 

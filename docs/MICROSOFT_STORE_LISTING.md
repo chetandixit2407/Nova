@@ -5,17 +5,19 @@ Copy and paste the fields below directly into the **Store listings** tab of your
 ---
 
 ## 1. Product Identification
-- **Product name:** NOVA
+- **Product name:** NOVA NOTCH
+- **Package Version:** 1.0.2.0
 - **Store ID:** 9PNBBD1G9ZW9
 - **Package Identity Name:** ChetanDixit.NOVANOTCH
 - **Publisher ID:** CN=1635A490-94F8-403E-9B36-79A1AE02E253
+- **Publisher Display Name:** Chetan Dixit
 - **Package Family Name:** ChetanDixit.NOVANOTCH_r4gq9kq12zn2y
 - **Category:** Productivity
 - **Subcategory:** Utilities & tools
 - **Pricing:** Free ($0.00 / Free tier)
-- **Platforms supported:** Windows 10 (Build 17763 or newer), Windows 11 (All 64-bit editions)
+- **Platforms supported:** Windows 10 (Build 17763 or newer), Windows 11 (All 64-bit & ARM64 editions)
 - **Primary language:** English (United States)
-- **Package format:** MSIX / MSIXBundle (x64, ARM64)
+- **Package format:** MSIX / MSIXBundle (Electron Desktop Bridge — x64, ARM64)
 
 ---
 

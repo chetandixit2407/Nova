@@ -136,18 +136,29 @@ export const NotchExpandedDashboard: React.FC = () => {
     toggleEyesOnlyMode,
     setEyesOnlyMode,
     resetNotchPosition,
-    isCustomPositioned
+    isCustomPositioned,
+    activeTab
   } = useNotch();
 
   // Active SubView (null means default compact 2-column floating dashboard)
-  const [activeSubView, setActiveSubView] = useState<SubViewType>(null);
+  const [activeSubView, setActiveSubView] = useState<SubViewType>(() =>
+    activeTab === 'settings' || activeTab === 'notifications' ? activeTab : null
+  );
   const [btDevices, setBtDevices] = useState(bluetoothService.getDevices());
 
   useEffect(() => {
     const unsubBt = bluetoothService.subscribe(() => {
       setBtDevices(bluetoothService.getDevices());
     });
-    return unsubBt;
+    const onOpenSubView = (ev: Event) => {
+      const target = (ev as CustomEvent<SubViewType>).detail;
+      if (target) setActiveSubView(target);
+    };
+    window.addEventListener('nova:open-subview', onOpenSubView);
+    return () => {
+      unsubBt();
+      window.removeEventListener('nova:open-subview', onOpenSubView);
+    };
   }, []);
 
   // Modals

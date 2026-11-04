@@ -66,7 +66,7 @@ const INITIAL_AGENTS: AIAgentState[] = [
     status: 'executing',
     activeTask: 'Autonomous workspace analysis & dependency tree pruning',
     gitBranch: 'chore/clean-deps',
-    lastCommit: 'c029df1 (chore: purge legacy Tauri binary scaffolding)',
+    lastCommit: 'c029df1 (feat: migrate desktop shell to hardened Electron IPC)',
     usage: {
       used: 6.2,
       limit: 16.0,
@@ -122,7 +122,7 @@ const INITIAL_GIT_UPDATES: GitUpdate[] = [
     repo: 'chetandixit2407/Nova',
     branch: 'main',
     commitHash: 'c029df1',
-    message: 'chore: purge legacy Tauri binary scaffolding for Vite web stack',
+    message: 'feat: configure Electron Main, Preload & Microsoft Store MSIX v1.0.2.0',
     author: 'Antigravity Runner',
     timestamp: Date.now() - 1800000
   }

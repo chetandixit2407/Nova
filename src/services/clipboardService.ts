@@ -3,6 +3,8 @@
  * Automatic capture, sensitive credential & password filtering, privacy controls.
  */
 
+import { systemService } from './systemService';
+
 export interface SecureClipboardItem {
   id: string;
   text: string;
@@ -139,6 +141,7 @@ class ClipboardService {
   public clearHistory() {
     this.items = [];
     this.saveToStorage();
+    systemService.clearSystemClipboard().catch(() => {});
     this.notify();
   }
 
@@ -159,9 +162,9 @@ class ClipboardService {
       this.checkSystemClipboard();
     });
 
-    // Periodic check every 3s when focused
+    // Periodic check every 3s (in Electron, Main Process clipboard works without requiring DOM focus)
     this.pollingTimer = window.setInterval(() => {
-      if (document.hasFocus() && this.autoCaptureEnabled && !this.isPaused) {
+      if ((systemService.isElectronDesktop() || document.hasFocus()) && this.autoCaptureEnabled && !this.isPaused) {
         this.checkSystemClipboard();
       }
     }, 3000);
@@ -169,11 +172,9 @@ class ClipboardService {
 
   private async checkSystemClipboard() {
     try {
-      if (navigator.clipboard && navigator.clipboard.readText) {
-        const text = await navigator.clipboard.readText();
-        if (text && text.trim() && text !== this.lastCapturedText) {
-          this.addItem(text);
-        }
+      const text = await systemService.readClipboard();
+      if (text && text.trim() && text !== this.lastCapturedText) {
+        this.addItem(text);
       }
     } catch {
       // Browser permission or background constraint

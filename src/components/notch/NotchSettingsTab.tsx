@@ -36,17 +36,30 @@ import {
 } from '../../types';
 import { MicrosoftStoreModal } from './MicrosoftStoreModal';
 import { greetingService, DEFAULT_GREETING_SETTINGS } from '../../services/greetingService';
+import { systemService } from '../../services/systemService';
 
 export const NotchSettingsTab: React.FC = () => {
   const [showStoreModal, setShowStoreModal] = useState<boolean>(false);
   const [greetingSettings, setGreetingSettings] = useState<GreetingSettings>(greetingService.getSettings());
+  const [autostartState, setAutostartState] = useState<{ openAtLogin: boolean; isWindowsStore: boolean }>({
+    openAtLogin: true,
+    isWindowsStore: false
+  });
 
   useEffect(() => {
     const unsub = greetingService.subscribe(() => {
       setGreetingSettings(greetingService.getSettings());
     });
+    systemService.getAutostartStatus().then((status) => {
+      setAutostartState(status);
+    });
     return unsub;
   }, []);
+
+  const handleToggleAutostart = async (checked: boolean) => {
+    const updated = await systemService.setAutostartStatus(checked);
+    setAutostartState(updated);
+  };
 
   const {
     config,
@@ -284,7 +297,7 @@ export const NotchSettingsTab: React.FC = () => {
           </div>
 
           <div className="flex items-center justify-between pt-1 border-t border-white/5">
-            <div className="flex flex-col">
+            <div className="flex flex-col pr-2">
               <span className="text-xs text-slate-200 font-medium flex items-center gap-1.5">
                 {showLiveActivities ? <Eye className="w-3.5 h-3.5 text-cyan-400" /> : <EyeOff className="w-3.5 h-3.5 text-slate-500" />}
                 Show Live Activities in Notch
@@ -297,7 +310,28 @@ export const NotchSettingsTab: React.FC = () => {
               type="checkbox"
               checked={showLiveActivities}
               onChange={toggleLiveActivities}
-              className="w-4 h-4 accent-cyan-500 cursor-pointer"
+              className="w-4 h-4 accent-cyan-500 cursor-pointer shrink-0"
+            />
+          </div>
+
+          <div className="flex items-center justify-between pt-1 border-t border-white/5">
+            <div className="flex flex-col pr-2">
+              <span className="text-xs text-slate-200 font-medium flex items-center gap-1.5">
+                <Laptop className="w-3.5 h-3.5 text-emerald-400" />
+                Launch NOVA NOTCH at Windows Startup
+              </span>
+              <span className="text-[10px] text-slate-400 leading-tight mt-0.5">
+                {autostartState.isWindowsStore
+                  ? 'Managed via MSIX StartupTask (Windows Settings → Apps → Startup).'
+                  : 'Starts compact Smart Notch automatically in the background when signing in.'}
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={autostartState.openAtLogin}
+              disabled={autostartState.isWindowsStore}
+              onChange={(e) => handleToggleAutostart(e.target.checked)}
+              className="w-4 h-4 accent-emerald-500 cursor-pointer shrink-0 disabled:opacity-50"
             />
           </div>
 

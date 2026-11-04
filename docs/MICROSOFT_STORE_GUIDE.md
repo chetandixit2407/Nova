@@ -1,93 +1,91 @@
-# NOVA — Microsoft Store Publication & MSIX Packaging Guide
+# NOVA NOTCH — Microsoft Store Publication & Electron MSIX Packaging Guide
 
-This guide details the complete process of packaging, certifying with the **Windows App Certification Kit (WACK)**, and publishing **NOVA (Windows Smart Notch)** to the **Microsoft Store** via **Microsoft Partner Center**.
+This guide details the complete process of packaging **NOVA NOTCH** (`v1.0.2.0`) with **Electron Builder**, certifying with the **Windows App Certification Kit (WACK)**, and submitting the MSIX package—including the required `runFullTrust` Desktop Bridge capability declaration—to the **Microsoft Store** via **Microsoft Partner Center**.
 
 ---
 
-## 1. Package Identity & Partner Center Setup
+## 1. Preserved Microsoft Store Identity (`v1.0.2.0`)
 
-Before submitting to the Microsoft Store, reserve your app name in the [Microsoft Partner Center](https://partner.microsoft.com/dashboard/apps-and-games/overview):
+The following verified Microsoft Partner Center identity values are configured across `electron-builder.json`, `package.json`, `scripts/build-msix.ps1`, and `.github/workflows/store-release.yml`:
 
-1. Go to **Apps and games** → **New product** → **MSIX or PWA app**.
-2. Enter the reserved name: `NOVA — Windows Smart Notch`.
-3. In **App management** → **App identity**, copy your unique Store values:
-
-| Field | Value in NOVA Manifest | Notes |
+| Field | Value in NOVA NOTCH Manifest | Notes |
 |---|---|---|
-| **Package Name** | `ChetanDixit.NOVANOTCH` | Verified Partner Center Identity Name |
-| **Package Display Name** | `NOVA — Windows Smart Notch` | Title displayed to users in Store & Start menu |
-| **Publisher ID** | `CN=1635A490-94F8-403E-9B36-79A1AE02E253` | Exact Partner Center Publisher CN |
+| **Identity Name** | `ChetanDixit.NOVANOTCH` | Exact Partner Center `<Identity Name>` |
+| **Product / Display Name** | `NOVA NOTCH` | Official Store & Start Menu title |
+| **Publisher** | `CN=1635A490-94F8-403E-9B36-79A1AE02E253` | Exact Partner Center Publisher CN |
 | **Publisher Display Name** | `Chetan Dixit` | Verified Publisher Display Name |
-| **Version** | `1.0.0.0` | Quad-notation: Major.Minor.Build.Revision |
+| **Package Version** | `1.0.2.0` | Quad-notation (`package.json` `1.0.2` + `buildVersion` `1.0.2.0`) |
+| **Application Id** | `NOVAApp` | Preserved `<Application Id="NOVAApp">` |
+| **Executable** | `app\nova.exe` | Electron Desktop Bridge EntryPoint (`Windows.FullTrustApplication`) |
 | **Package Family Name** | `ChetanDixit.NOVANOTCH_r4gq9kq12zn2y` | Derived Windows PFN |
 | **Store ID** | `9PNBBD1G9ZW9` | Official Microsoft Store Product ID |
-| **Processor Architecture** | `x64` and `ARM64` | Multi-architecture Windows 10/11 |
+| **Processor Architectures** | `x64` and `ARM64` | Windows 10 (Build 17763+) & Windows 11 |
 
-These values are configured in:
-- `src-tauri/AppxManifest.xml`
-- `src-tauri/tauri.conf.json`
-- `scripts/build-msix.ps1`
-- `.github/workflows/store-release.yml`
-
----
-
-## 2. Windows App Certification Kit (WACK) Test Results
-
-NOVA has been validated against all **14 mandatory Windows App Certification Kit (WACK)** tests for Microsoft Store desktop bridge (Centennial / Tauri) applications:
-
-| # | Test Category | Result | Description & Compliance Notes |
-|---|---|---|---|
-| **1** | **Package Compliance Test** | **PASSED** | Manifest syntax, schema namespace declarations, and identity structure verified. |
-| **2** | **Appx Signature Validation** | **PASSED** | Code signing block structure valid. (Partner Center signs Store builds automatically). |
-| **3** | **Supported API Test** | **PASSED** | Uses only public Win32, DWM, and Webview2 APIs. No private NT kernel symbols. |
-| **4** | **Restricted Capabilities Test** | **PASSED** | `runFullTrust` capability declared and justified for always-on-top overlay and system integration. |
-| **5** | **Platform Version Suitability** | **PASSED** | `MinVersion: 10.0.17763.0` (Win 10 Oct 2018 Update) to `MaxVersionTested: 10.0.26100.0` (Win 11 24H2). |
-| **6** | **High-DPI Visual Assets** | **PASSED** | Required Store tile assets supplied: `Square44x44Logo`, `Square150x150Logo`, `Wide310x150Logo`, `StoreLogo`. |
-| **7** | **Clean Install & Uninstall** | **PASSED** | Zero residual system files; settings stored cleanly in Windows app data containers. |
-| **8** | **Application Launch & Crash Test**| **PASSED** | No uncaught panics; app window renders within 800ms cold start SLA. |
-| **9** | **Background Tasks & Startup** | **PASSED** | `desktop:StartupTask` extension validated; minimal idle CPU footprint (< 0.5%). |
-| **10**| **Security Features (DEP/ASLR)** | **PASSED** | Rust compiler generates binaries with full Data Execution Prevention & ASLR enabled. |
-| **11**| **App Shutdown Test** | **PASSED** | Exits cleanly when requested from System Tray or Task Manager without hung threads. |
-| **12**| **Multi-Monitor DpiAwareness** | **PASSED** | `PerMonitorV2` DPI scaling configured for crisp rendering across 100% to 300% displays. |
-| **13**| **File Association & URI Scheme** | **PASSED** | `nova:` protocol registration conforms to UAP protocol specifications. |
-| **14**| **Windows Security Verification** | **PASSED** | Windows Defender SmartScreen reputation and static code analysis clean. |
+Configuration files:
+- `electron-builder.json` (`appx` target, Store identity, capabilities, visual assets)
+- `build/appx/extensions.xml` (`desktop:StartupTask` background startup extension)
+- `build/appx/*.png` (`StoreLogo.png`, `Square44x44Logo.png`, `Square150x150Logo.png`, `Wide310x150Logo.png`, `SplashScreen.png`)
+- `scripts/build-msix.ps1` (Local PowerShell MSIX + MSIXBundle + WACK build pipeline)
+- `.github/workflows/store-release.yml` (Automated GitHub Actions Windows MSIX build pipeline)
 
 ---
 
-## 3. How to Build the `.msix` / `.msixbundle`
+## 2. MSIX Manifest Capabilities Required by Electron
 
-### Option A: Local PowerShell Build (Windows 10/11)
-Run in PowerShell (Administrator):
-```powershell
-.\scripts\build-msix.ps1 -Version "1.0.0.0"
+Electron applications packaged as MSIX run via the **Windows Desktop Bridge** (`EntryPoint="Windows.FullTrustApplication"`). Unlike UWP AppContainer apps, Chromium's multi-process sandbox, Win32 transparent layered `BrowserWindow` overlays (`WS_EX_LAYERED`, `alwaysOnTop`), system tray icons (`Shell_NotifyIcon`), and global keyboard shortcuts (`RegisterHotKey`) execute as Win32 desktop processes.
+
+Accordingly, `electron-builder.json` declares **only the two exact capabilities required**:
+
+```xml
+<Capabilities>
+  <Capability Name="internetClient" />
+  <rescap:Capability Name="runFullTrust" />
+</Capabilities>
 ```
-The script will:
-1. Build the production React frontend bundle via Vite (`dist/`).
-2. Invoke `cargo tauri build --bundles msix`.
-3. Package the MSIX archive with `MakeAppx.exe`.
-4. Run WACK validation using `appcert.exe`.
-5. Output `target/store_packages/NOVA_1.0.0.0_x64.msixbundle`.
 
-### Option B: Automated GitHub Actions CI/CD
-A pre-configured GitHub Actions workflow is available in `.github/workflows/store-release.yml`. Simply create a Git release tag (e.g. `git tag v1.0.0 && git push origin v1.0.0`) to generate and download the Store-ready `.msixbundle` from the GitHub Actions artifacts tab.
+1. **`internetClient`** *(Standard Capability)* — Required for outbound HTTPS requests (optional weather, exchange rates, lyrics, and cloud assistant endpoints). Requires no special Store approval.
+2. **`rescap:runFullTrust`** *(Restricted Desktop Bridge Capability — Mandatory)* — Required by **every** Electron MSIX package because `Executable="app\nova.exe"` launches under `EntryPoint="Windows.FullTrustApplication"`. Removing `runFullTrust` causes `MakeAppx.exe`, Windows installation, and Store ingestion to fail immediately because Win32 Desktop Bridge executables cannot launch inside a pure UWP AppContainer.
+
+> **Important Security Note:** No unnecessary or elevated restricted capabilities (`allowElevation`, `broadFileSystemAccess`, `unvirtualizedResources`, `packageManagement`, etc.) are declared. Execution level is strictly `asInvoker` with Electron renderer hardening (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`).
 
 ---
 
-## 4. Microsoft Partner Center Upload Instructions
+## 3. Microsoft Partner Center `runFullTrust` Approval Process
 
-1. Log into [Microsoft Partner Center](https://partner.microsoft.com/dashboard).
-2. Open your reserved application: **NOVA — Windows Smart Notch**.
-3. Click **Start your submission** (or update an existing submission).
-4. Complete the submission sections:
-   - **Pricing and availability**: Select **Free** (or your preferred price tier) and target markets.
-   - **Properties**:
-     - Category: **Utilities & tools** → **Productivity**.
-     - System Requirements: 64-bit processor, 4 GB RAM.
-   - **Age ratings**: Complete the IARC questionnaire (typically rated for all ages / PEGI 3 / ESRB Everyone).
-   - **Packages**:
-     - Drag and drop `NOVA_1.0.0.0_x64.msixbundle`.
-     - Partner Center will validate package identity, publisher, and capabilities automatically.
-   - **Store listings**:
-     - Add description, feature highlights, and app screenshots (1366x768 or 1920x1080).
-     - Search terms: `notch`, `dynamic island`, `windows 11`, `live activities`, `media controls`.
-5. Click **Submit to the Store**. Certification typically completes in 24 to 48 hours!
+Because `rescap:runFullTrust` is a Microsoft-reviewed restricted capability, follow these exact steps during your Partner Center submission:
+
+1. Open [Microsoft Partner Center](https://partner.microsoft.com/dashboard/apps-and-games/overview) → **NOVA NOTCH** → Start/Update submission `1.0.2.0`.
+2. Upload `NOVA-NOTCH-1.0.2.0-x64.msix` and `NOVA-NOTCH-1.0.2.0-arm64.msix` (or `NOVA-NOTCH_1.0.2.0_MultiArch.msixbundle`) in the **Packages** section.
+   - Do **not** self-sign packages intended for Partner Center if you want clean validation without local cert warnings (`CSC_IDENTITY_AUTO_DISCOVERY=false` is set automatically in `build-msix.ps1` and CI); Microsoft Store signs the MSIX packages automatically upon certification.
+3. Navigate to **Submission options** (or **Properties** → **Supplemental information / Notes for certification**, and the **Restricted capabilities** prompt automatically shown when Partner Center detects `runFullTrust` in `AppxManifest.xml`).
+4. Provide a clear explanation of why `runFullTrust` is required and confirm that your app does not modify system-wide state outside its MSIX container or require administrator elevation:
+
+   > **Ready-to-paste Partner Center Justification for `runFullTrust`:**
+   > "NOVA NOTCH is a Windows desktop utility built with the Electron framework (Desktop Bridge / `Windows.FullTrustApplication`). The `runFullTrust` capability is required by Electron's Chromium multi-process architecture and Win32 desktop APIs to render a frameless, transparent, always-on-top Smart Notch overlay at the top edge of the primary display, register a Windows System Tray icon (`Tray`), listen for the user-configurable `Alt+N` toggle shortcut, and register an optional user-controllable `desktop:StartupTask` (`NOVAStartupTask`). The application runs strictly at standard user privilege (`asInvoker`), enforces renderer sandboxing (`contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`), does not bundle third-party installers or auto-updaters outside the Microsoft Store, and stores all configuration cleanly within the packaged user profile container."
+
+5. **Account Eligibility Note**: Individual and Company developer accounts in Partner Center are routinely approved for `runFullTrust` on standard Desktop Bridge apps (Electron, WPF, WinForms, WinUI 3) when the justification above is supplied in **Submission options → Notes for certification**. Ensure no external auto-update code (`electron-updater`) is included in the Store build (NOVA NOTCH intentionally excludes `electron-updater` so updates are delivered exclusively through the Microsoft Store).
+
+---
+
+## 4. How to Build the `.msix` / `.msixbundle` (`v1.0.2.0`)
+
+### Option A: Quick NPM Script (Windows 10/11)
+```powershell
+npm install
+npm run electron:msix
+```
+Outputs `release/NOVA-NOTCH-1.0.2.0-x64.msix` and `release/NOVA-NOTCH-1.0.2.0-arm64.msix`.
+
+### Option B: Full PowerShell Pipeline with MSIXBundle & WACK
+```powershell
+.\scripts\build-msix.ps1 -Version "1.0.2.0"
+```
+This script:
+1. Synchronizes `package.json` (`1.0.2`) and `electron-builder.json` (`1.0.2.0` + Partner Center Identity).
+2. Builds the React + Vite frontend (`dist/`).
+3. Invokes `electron-builder --win appx --x64 --arm64` to generate Store-ready MSIX packages.
+4. Bundles x64 + ARM64 into `release/store_packages/NOVA-NOTCH_1.0.2.0_MultiArch.msixbundle` via `MakeAppx.exe`.
+5. Executes `appcert.exe` (Windows App Certification Kit) and writes `WACK-Certification-Report.xml`.
+
+### Option C: GitHub Actions CI/CD
+Push a `v1.0.2` tag or trigger **Microsoft Store Multi-Arch Electron MSIX & WACK Certification** manually via `workflow_dispatch` in GitHub Actions to build and download `NOVA-NOTCH-Store-Packages-1.0.2.0`.

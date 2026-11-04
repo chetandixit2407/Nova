@@ -1,0 +1,68 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "ChetanDixit.NOVANOTCH",
+  "productName": "NOVA NOTCH",
+  "buildVersion": "1.0.2.0",
+  "copyright": "Copyright © 2026 Chetan Dixit",
+  "asar": true,
+  "directories": {
+    "buildResources": "build",
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "package.json",
+    "!node_modules/**/*"
+  ],
+  "protocols": [
+    {
+      "name": "NOVA Notch Launch Protocol",
+      "schemes": ["nova"]
+    }
+  ],
+  "win": {
+    "executableName": "nova",
+    "icon": "build/icon.ico",
+    "requestedExecutionLevel": "asInvoker",
+    "target": [
+      {
+        "target": "appx",
+        "arch": ["x64", "arm64"]
+      },
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      }
+    ]
+  },
+  "appx": {
+    "identityName": "ChetanDixit.NOVANOTCH",
+    "applicationId": "NOVAApp",
+    "publisher": "CN=1635A490-94F8-403E-9B36-79A1AE02E253",
+    "publisherDisplayName": "Chetan Dixit",
+    "displayName": "NOVA NOTCH",
+    "backgroundColor": "#090D16",
+    "showNameOnTiles": true,
+    "languages": ["en-US"],
+    "minVersion": "10.0.17763.0",
+    "maxVersionTested": "10.0.26100.0",
+    "addAutoLaunchExtension": false,
+    "customExtensionsPath": "build/appx/extensions.xml",
+    "capabilities": [
+      "internetClient",
+      "runFullTrust"
+    ],
+    "artifactName": "NOVA-NOTCH-1.0.2.0-${arch}.msix"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true,
+    "installerIcon": "build/icon.ico",
+    "uninstallerIcon": "build/icon.ico",
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "NOVA NOTCH"
+  }
+}

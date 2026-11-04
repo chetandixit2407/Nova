@@ -16,6 +16,7 @@ import {
   Laptop
 } from 'lucide-react';
 import { useNotch } from '../../context/NotchContext';
+import { systemService } from '../../services/systemService';
 import { AITool } from '../../types';
 
 export const NotchAIHubTab: React.FC = () => {
@@ -59,7 +60,7 @@ export const NotchAIHubTab: React.FC = () => {
   };
 
   const handleOpenAI = (url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
+    systemService.openExternalUrl(url);
   };
 
   const handleAddSubmit = (e: React.FormEvent) => {

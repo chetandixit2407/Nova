@@ -180,10 +180,14 @@ class SystemService {
   }
 
   /**
-   * Read system clipboard
+   * Read system clipboard via secure Electron IPC or Web Clipboard fallback
    */
   public async readClipboard(): Promise<string | null> {
     try {
+      if (typeof window !== 'undefined' && window.electronAPI?.readClipboardText) {
+        const text = await window.electronAPI.readClipboardText();
+        return text || null;
+      }
       if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
         return await navigator.clipboard.readText();
       }
@@ -194,10 +198,13 @@ class SystemService {
   }
 
   /**
-   * Write to system clipboard
+   * Write to system clipboard via secure Electron IPC or Web Clipboard fallback
    */
   public async copyToClipboard(text: string): Promise<boolean> {
     try {
+      if (typeof window !== 'undefined' && window.electronAPI?.writeClipboardText) {
+        return await window.electronAPI.writeClipboardText(text);
+      }
       if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
         return true;
@@ -209,10 +216,39 @@ class SystemService {
   }
 
   /**
-   * Send Native Desktop Web Notification
+   * Clear system clipboard when running in Electron
+   */
+  public async clearSystemClipboard(): Promise<boolean> {
+    try {
+      if (typeof window !== 'undefined' && window.electronAPI?.clearClipboard) {
+        return await window.electronAPI.clearClipboard();
+      }
+    } catch {}
+    return false;
+  }
+
+  /**
+   * Send Native Desktop Notification via Electron Main Process or Web Notification API
    */
   public async sendNativeNotification(title: string, options?: NotificationOptions): Promise<boolean> {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    try {
+      if (window.electronAPI?.sendNotification) {
+        const sent = await window.electronAPI.sendNotification({
+          title,
+          body: options?.body,
+          silent: options?.silent ?? undefined
+        });
+        if (sent) return true;
+      }
+    } catch {
+      // Fall through to Web Notification API
+    }
+
+    if (!('Notification' in window)) {
       return false;
     }
 
@@ -343,39 +379,174 @@ class SystemService {
   }
 
   private syncWindowTimeout: number | null = null;
+  private hasSyncedInitialWindow = false;
+  private lastSyncedExpanded = false;
 
   /**
-   * Synchronize native Tauri window size & position with React animation state
-   * Prevents resize flicker, avoids clipping during collapse, and guarantees top-center anchoring on Windows
+   * Detect whether running inside the Electron native Windows shell via secure preload bridge
    */
-  public syncNativeWindow(isExpanded: boolean, width: number, height: number): void {
+  public isElectronDesktop(): boolean {
+    if (typeof window === 'undefined') return false;
+    return Boolean(window.electronAPI?.isElectron);
+  }
+
+  /**
+   * Detect whether running inside native desktop shell
+   */
+  public isNativeDesktop(): boolean {
+    return this.isElectronDesktop();
+  }
+
+  /**
+   * Open external URL in system default browser without spawning stray popup BrowserWindows
+   */
+  public openExternalUrl(url: string): void {
+    if (!url || typeof window === 'undefined') return;
+
+    if (window.electronAPI?.openExternal) {
+      window.electronAPI.openExternal(url).catch(() => {});
+      return;
+    }
+
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener noreferrer';
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+  }
+
+  /**
+   * Synchronize native Electron window size & position with React animation state.
+   * Immediately sizes and reveals the compact Smart Notch on initial launch (zero black/blank flash),
+   * and waits for spring animations to settle before shrinking on collapse.
+   */
+  public syncNativeWindow(
+    isExpanded: boolean,
+    width: number,
+    height: number,
+    options?: { fullscreen?: boolean }
+  ): void {
     if (this.syncWindowTimeout) {
       clearTimeout(this.syncWindowTimeout);
       this.syncWindowTimeout = null;
     }
 
-    const tauri = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__;
-    if (!tauri || typeof tauri.invoke !== 'function') return;
+    if (typeof window === 'undefined') return;
 
-    if (isExpanded) {
-      // Immediately size native window up so the expanding spring animation has full canvas to bloom
-      tauri.invoke('sync_notch_window', {
-        isExpanded: true,
-        width: Math.round(width),
-        height: Math.round(height + 12)
-      }).catch(() => {});
-    } else {
-      // When collapsing, wait for the spring collapse animation to settle (~360ms)
-      // before shrinking the native window, preventing abrupt clipping or flicker
-      this.syncWindowTimeout = window.setTimeout(() => {
-        tauri.invoke('sync_notch_window', {
-          isExpanded: false,
-          width: Math.round(width + 12),
-          height: Math.round(height + 10)
-        }).catch(() => {});
-        this.syncWindowTimeout = null;
-      }, 360);
+    const electronSync = window.electronAPI?.syncNotchWindow;
+    if (typeof electronSync !== 'function') {
+      return;
     }
+
+    const isFullscreen = Boolean(options?.fullscreen);
+    const paddedWidth = isFullscreen
+      ? Math.round(window.screen?.availWidth || width)
+      : Math.round(width + 32);
+    const paddedHeight = isFullscreen
+      ? Math.round(window.screen?.availHeight || height)
+      : Math.round(height + 28);
+
+    const dispatchSync = (expandedFlag: boolean, revealFlag: boolean) => {
+      electronSync({
+        isExpanded: expandedFlag,
+        width: paddedWidth,
+        height: paddedHeight,
+        reveal: revealFlag,
+        fullscreen: isFullscreen
+      }).catch(() => {});
+    };
+
+    // On initial launch, immediately size to compact Smart Notch and reveal with zero delay
+    if (!this.hasSyncedInitialWindow) {
+      this.hasSyncedInitialWindow = true;
+      this.lastSyncedExpanded = isExpanded || isFullscreen;
+      dispatchSync(isExpanded || isFullscreen, true);
+      return;
+    }
+
+    if (isExpanded || isFullscreen) {
+      this.lastSyncedExpanded = true;
+      dispatchSync(true, true);
+    } else if (this.lastSyncedExpanded) {
+      // Wait for spring collapse animation (~340ms) before shrinking native window bounds
+      this.lastSyncedExpanded = false;
+      this.syncWindowTimeout = window.setTimeout(() => {
+        dispatchSync(false, false);
+        this.syncWindowTimeout = null;
+      }, 340);
+    } else {
+      dispatchSync(false, false);
+    }
+  }
+
+  /**
+   * Move native notch window by delta pixels when dragged on Windows desktop
+   */
+  public moveNativeWindowBy(dx: number, dy: number): void {
+    if (typeof window === 'undefined') return;
+    if (window.electronAPI?.moveNotchWindow) {
+      window.electronAPI.moveNotchWindow(Math.round(dx), Math.round(dy)).catch(() => {});
+    }
+  }
+
+  /**
+   * Reset native notch window back to top-center of monitor
+   */
+  public resetNativeWindowPosition(): void {
+    if (typeof window === 'undefined') return;
+    if (window.electronAPI?.resetNotchWindow) {
+      window.electronAPI.resetNotchWindow().catch(() => {});
+    }
+  }
+
+  /**
+   * Query Windows startup / autostart registration state
+   */
+  public async getAutostartStatus(): Promise<{ openAtLogin: boolean; isWindowsStore: boolean }> {
+    if (typeof window !== 'undefined' && window.electronAPI?.getAutostart) {
+      try {
+        return await window.electronAPI.getAutostart();
+      } catch {}
+    }
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('nova_autostart_enabled') : null;
+    return {
+      openAtLogin: stored === null ? true : stored === 'true',
+      isWindowsStore: false
+    };
+  }
+
+  /**
+   * Update Windows startup / autostart registration state
+   */
+  public async setAutostartStatus(enabled: boolean): Promise<{ openAtLogin: boolean; isWindowsStore: boolean }> {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('nova_autostart_enabled', String(Boolean(enabled)));
+      } catch {}
+      if (window.electronAPI?.setAutostart) {
+        try {
+          return await window.electronAPI.setAutostart(Boolean(enabled));
+        } catch {}
+      }
+    }
+    return {
+      openAtLogin: Boolean(enabled),
+      isWindowsStore: false
+    };
+  }
+
+  /**
+   * Fetch live OS CPU & memory telemetry from Electron Main Process when available
+   */
+  public async getLiveSystemMetrics() {
+    if (typeof window !== 'undefined' && window.electronAPI?.getSystemMetrics) {
+      try {
+        return await window.electronAPI.getSystemMetrics();
+      } catch {}
+    }
+    return null;
   }
 }
 

@@ -281,11 +281,11 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const saved = localStorage.getItem('nova_notch_config');
       if (saved) {
         const parsed = JSON.parse(saved);
-        return { ...DEFAULT_CONFIG, ...parsed, hoverExpansion: true, graceDelay: 240 };
+        return { ...DEFAULT_CONFIG, ...parsed, isDetached: false, hoverExpansion: true, graceDelay: 240 };
       }
-      return { ...DEFAULT_CONFIG, hoverExpansion: true, graceDelay: 240 };
+      return { ...DEFAULT_CONFIG, isDetached: false, hoverExpansion: true, graceDelay: 240 };
     } catch {
-      return { ...DEFAULT_CONFIG, hoverExpansion: true, graceDelay: 240 };
+      return { ...DEFAULT_CONFIG, isDetached: false, hoverExpansion: true, graceDelay: 240 };
     }
   });
 
@@ -331,7 +331,7 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [clipboardHistory, setClipboardHistory] = useState<ClipboardItem[]>([
     { id: 'cb-1', text: 'git commit -m "feat(notch): implement fluid dynamic island"', timestamp: Date.now() - 1000 * 60 * 12, charCount: 61 },
-    { id: 'cb-2', text: 'npm run tauri build -- --target x86_64-pc-windows-msvc', timestamp: Date.now() - 1000 * 60 * 35, charCount: 54 },
+    { id: 'cb-2', text: 'npm run electron:msix', timestamp: Date.now() - 1000 * 60 * 35, charCount: 21 },
     { id: 'cb-3', text: 'https://ais-dev-nhouojev3vrlirkjcgsyzw-870296140886.asia-east1.run.app', timestamp: Date.now() - 1000 * 60 * 70, charCount: 71 }
   ]);
 
@@ -422,9 +422,9 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   }, []);
 
-  // Pro Features State
+  // Pro Features State — always boot directly into compact Smart Notch on launch
   const [invisibilityCloakActive, setInvisibilityCloakActive] = useState<boolean>(false);
-  const [isDetached, setIsDetached] = useState<boolean>(config.isDetached || false);
+  const [isDetached, setIsDetached] = useState<boolean>(false);
   const [dropShelfFiles, setDropShelfFiles] = useState<DropShelfFile[]>([]);
   const [isFullscreenMusicOpen, setIsFullscreenMusicOpen] = useState<boolean>(false);
   const [eyesOnlyMode, setEyesOnlyMode] = useState<boolean>(false);
@@ -809,6 +809,7 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const resetNotchPosition = useCallback(() => {
     setNotchPosition(null);
+    systemService.resetNativeWindowPosition();
     soundService.play('notch_collapse');
     showToast({
       appName: 'NOVA Island',
@@ -845,7 +846,7 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const triggerTestNotification = useCallback(async () => {
     const testTitles = [
-      { app: 'Windows Terminal', title: 'Build Succeeded', msg: 'Tauri v2 release binary generated in target/release/nova.exe.' },
+      { app: 'Windows Terminal', title: 'Build Succeeded', msg: 'Electron MSIX v1.0.2.0 package generated in release/NOVA-NOTCH-1.0.2.0-x64.msix.' },
       { app: 'Spotify', title: 'Now Playing', msg: 'Synthwave Nightscape by NOVA Audio.' },
       { app: 'Windows Backup', title: 'Cloud Sync Completed', msg: 'All system files safely synchronized to OneDrive.' }
     ];
@@ -1107,8 +1108,43 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isExpanded, collapseNotch, toggleExpand, refreshWeather]);
+
+    // Subscribe to Windows System Tray & Global Shortcut events via secure Electron preload bridge
+    let unlistenOpenTab: (() => void) | null = null;
+    let unlistenToggleExpand: (() => void) | null = null;
+
+    if (window.electronAPI?.onOpenTab) {
+      unlistenOpenTab = window.electronAPI.onOpenTab((requestedTab) => {
+        if (requestedTab) {
+          setActiveTabState(requestedTab as NotchTab);
+          window.dispatchEvent(new CustomEvent('nova:open-subview', { detail: requestedTab }));
+        }
+        expandNotch();
+      });
+    }
+
+    if (window.electronAPI?.onToggleExpand) {
+      unlistenToggleExpand = window.electronAPI.onToggleExpand(() => {
+        toggleExpand();
+      });
+    }
+
+    const handleCustomOpenTab = (ev: Event) => {
+      const detail = (ev as CustomEvent<NotchTab>).detail;
+      if (detail) {
+        setActiveTabState(detail);
+      }
+      expandNotch();
+    };
+    window.addEventListener('nova:open-tab', handleCustomOpenTab);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('nova:open-tab', handleCustomOpenTab);
+      if (unlistenOpenTab) unlistenOpenTab();
+      if (unlistenToggleExpand) unlistenToggleExpand();
+    };
+  }, [isExpanded, collapseNotch, toggleExpand, expandNotch, refreshWeather]);
 
   const activeActivityCount = tasks.filter((t) => t.status === 'running').length;
 

@@ -1,6 +1,7 @@
 import { InstalledWindowsApp, QuickAppShortcut } from '../types';
 import { windowActivityService, WindowsApp } from './windowActivityService';
 import { soundService } from './soundService';
+import { systemService } from './systemService';
 
 const STORAGE_KEY_APPS = 'nova_installed_apps_v2';
 const STORAGE_KEY_SLOTS = 'nova_quick_apps_slots_v2';
@@ -759,52 +760,52 @@ class InstalledAppsService {
     const isUrl = shortcut?.actionType === 'url' || (protocol && (protocol.startsWith('http://') || protocol.startsWith('https://')));
 
     try {
-      // Step A: Invoke Native OS Process via Server Bridge (/api/launch-app)
-      try {
-        fetch('/api/launch-app', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+      // Step A: If running inside Electron Native Windows App, invoke secure Main Process launchApp IPC
+      if (typeof window !== 'undefined' && window.electronAPI?.launchApp) {
+        await window.electronAPI
+          .launchApp({
             id: targetId,
             name: displayName,
             protocol,
             exePath,
             processName: app?.processName
           })
-        }).catch(() => {});
-      } catch {}
-
-      // Step B: If running inside Tauri Native Windows App, invoke Tauri Shell
-      if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+          .catch(() => {});
+      } else {
+        // Step B: In Web Preview Mode, invoke Express bridge (/api/launch-app) and URI handlers
         try {
-          const tauri = (window as any).__TAURI__;
-          if (tauri.invoke) {
-            tauri.invoke('launch_app', { app: targetId, protocol, exePath }).catch(() => {});
-          } else if (tauri.shell?.open) {
-            tauri.shell.open(protocol || exePath).catch(() => {});
-          }
+          fetch('/api/launch-app', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: targetId,
+              name: displayName,
+              protocol,
+              exePath,
+              processName: app?.processName
+            })
+          }).catch(() => {});
         } catch {}
-      }
 
-      // Step C: Trigger Registered Windows URI Protocol Handler (vscode://, microsoft-edge:, ms-settings:, etc.)
-      if (isUrl) {
-        const urlToOpen = protocol || exePath || shortcut?.target;
-        if (urlToOpen && (urlToOpen.startsWith('http://') || urlToOpen.startsWith('https://'))) {
-          window.open(urlToOpen, '_blank', 'noopener,noreferrer');
-        }
-      } else if (protocol && !protocol.startsWith('file://')) {
-        try {
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = protocol;
-          document.body.appendChild(iframe);
-          setTimeout(() => {
-            if (document.body.contains(iframe)) {
-              document.body.removeChild(iframe);
-            }
-          }, 2000);
-        } catch {
-          // Fallback if blocked
+        if (isUrl) {
+          const urlToOpen = protocol || exePath || shortcut?.target;
+          if (urlToOpen && (urlToOpen.startsWith('http://') || urlToOpen.startsWith('https://'))) {
+            systemService.openExternalUrl(urlToOpen);
+          }
+        } else if (protocol && !protocol.startsWith('file://')) {
+          try {
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = protocol;
+            document.body.appendChild(iframe);
+            setTimeout(() => {
+              if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
+              }
+            }, 2000);
+          } catch {
+            // Fallback if blocked
+          }
         }
       }
 

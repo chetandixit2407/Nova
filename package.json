@@ -1,14 +1,26 @@
 {
-  "name": "react-example",
+  "name": "nova-notch",
+  "productName": "NOVA NOTCH",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.2",
+  "description": "A premium Dynamic Island-style smart notch for Windows, bringing live activities, media controls, system insights and quick actions into one elegant desktop interface.",
+  "author": {
+    "name": "Chetan Dixit",
+    "email": "chetandixit9968@gmail.com"
+  },
+  "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
-    "dev": "vite --port=3000 --host=0.0.0.0",
+    "dev": "CI=true tsx server.ts",
     "build": "vite build",
-    "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "start": "node server.ts",
+    "preview": "vite preview --port 3000 --host 0.0.0.0",
+    "clean": "rm -rf dist release server.js",
+    "lint": "tsc --noEmit",
+    "electron:start": "electron .",
+    "electron:pack": "npm run build && electron-builder --dir --config electron-builder.json",
+    "electron:build": "npm run build && electron-builder --win nsis --config electron-builder.json",
+    "electron:msix": "npm run build && electron-builder --win appx --x64 --arm64 --publish never --config electron-builder.json"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -23,14 +35,16 @@
     "motion": "^12.23.24"
   },
   "devDependencies": {
+    "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "autoprefixer": "^10.4.21",
+    "electron": "^45.2.2",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
-    "typescript": "^7.0.2",
-    "@types/express": "^4.17.21"
+    "typescript": "^7.0.2"
   }
 }

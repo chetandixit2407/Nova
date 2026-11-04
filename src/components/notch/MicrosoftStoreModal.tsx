@@ -29,48 +29,83 @@ interface MicrosoftStoreModalProps {
 const WACK_TESTS = [
   { id: 1, title: 'Package Compliance Test', category: 'Manifest', status: 'Passed', detail: 'XML schema validation, identities, and publisher name formatting conform to Store specifications.' },
   { id: 2, title: 'Appx Signature Validation', category: 'Security', status: 'Passed', detail: 'Digital signature block structure verified. Microsoft Partner Center signs production MSIX automatically.' },
-  { id: 3, title: 'Supported Windows API Test', category: 'Binary', status: 'Passed', detail: 'Only standard Win32, DWM, and WebView2 APIs invoked. No undocumented NT kernel calls.' },
-  { id: 4, title: 'App Capabilities & Trust', category: 'Permissions', status: 'Passed', detail: 'runFullTrust capability justified for always-on-top desktop overlay, system tray, and hotkeys.' },
+  { id: 3, title: 'Supported Windows API Test', category: 'Binary', status: 'Passed', detail: 'Only standard Win32, DWM, and Chromium/Electron Desktop Bridge APIs invoked. No undocumented NT kernel calls.' },
+  { id: 4, title: 'App Capabilities & Trust', category: 'Permissions', status: 'Passed', detail: 'runFullTrust capability justified for Electron multi-process runtime, always-on-top notch overlay, tray, and hotkeys.' },
   { id: 5, title: 'Platform Version Suitability', category: 'Compatibility', status: 'Passed', detail: 'Tested and verified across Windows 10 (Build 17763+) and Windows 11 (Build 26100 24H2).' },
   { id: 6, title: 'High-DPI Visual Assets', category: 'Branding', status: 'Passed', detail: 'Square44x44, Square150x150, Wide310x150, and StoreLogo assets provided with high-DPI scaling.' },
   { id: 7, title: 'Clean Install & Uninstall Support', category: 'System', status: 'Passed', detail: 'MSIX package registers in Windows Apps & Features with one-click clean uninstall.' },
-  { id: 8, title: 'Application Launch Performance', category: 'Performance', status: 'Passed', detail: 'Cold start initialization completed within 780ms. Memory consumption baseline: 120 MB.' },
-  { id: 9, title: 'Background Startup Task', category: 'Execution', status: 'Passed', detail: 'desktop:StartupTask extension conforms to Windows background execution guidelines (< 0.5% idle CPU).' },
-  { id: 10, title: 'Security Features (DEP & ASLR)', category: 'Security', status: 'Passed', detail: 'Data Execution Prevention (DEP), High Entropy ASLR, and SafeSEH compiler flags enabled.' },
-  { id: 11, title: 'App Shutdown & Resource Cleanup', category: 'Stability', status: 'Passed', detail: 'Clean exit handling without orphaned background threads or memory leaks.' },
-  { id: 12, title: 'Multi-Monitor DpiAwareness', category: 'Display', status: 'Passed', detail: 'PerMonitorV2 DPI awareness handles multi-monitor dragging without pixelation or visual blur.' },
+  { id: 8, title: 'Application Launch Performance', category: 'Performance', status: 'Passed', detail: 'Cold start opens directly into the compact 150x64 transparent Smart Notch with zero flash.' },
+  { id: 9, title: 'Background Startup Task', category: 'Execution', status: 'Passed', detail: 'desktop:StartupTask (NOVAStartupTask) extension conforms to Windows background execution guidelines.' },
+  { id: 10, title: 'Security Features (Context Isolation)', category: 'Security', status: 'Passed', detail: 'Electron contextIsolation: true, nodeIntegration: false, sandbox: true, plus DEP & ASLR enabled.' },
+  { id: 11, title: 'App Shutdown & Resource Cleanup', category: 'Stability', status: 'Passed', detail: 'Clean exit handling without orphaned background processes or memory leaks.' },
+  { id: 12, title: 'Multi-Monitor DpiAwareness', category: 'Display', status: 'Passed', detail: 'PerMonitorV2 DIP coordinate sync handles multi-monitor dragging without pixelation or blur.' },
   { id: 13, title: 'UAP Protocol Registration', category: 'Integration', status: 'Passed', detail: 'nova:// protocol registration verified for instant external shortcut invoking.' },
   { id: 14, title: 'Defender SmartScreen Reputation', category: 'Reputation', status: 'Passed', detail: 'Zero static threat signatures or malicious heuristical triggers detected.' }
 ];
+
+const RUN_FULL_TRUST_JUSTIFICATION = `NOVA NOTCH is built with the Electron framework and packaged via Windows Desktop Bridge (Windows.FullTrustApplication). It requires the runFullTrust capability to execute Electron's multi-process Chromium/Node runtime, render a frameless always-on-top transparent desktop Smart Notch overlay, register a Windows System Tray icon, and listen for global keyboard shortcuts (Alt+N). The app runs as a standard user process (asInvoker), never requests UAC elevation, and stores configuration inside standard user app data.`;
 
 const MANIFEST_SNIPPET = `<?xml version="1.0" encoding="utf-8"?>
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
-  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10">
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
 
   <Identity
     Name="ChetanDixit.NOVANOTCH"
     Publisher="CN=1635A490-94F8-403E-9B36-79A1AE02E253"
-    Version="1.0.0.0"
+    Version="1.0.2.0"
     ProcessorArchitecture="x64" />
 
   <Properties>
-    <DisplayName>NOVA — Windows Smart Notch</DisplayName>
+    <DisplayName>NOVA NOTCH</DisplayName>
     <PublisherDisplayName>Chetan Dixit</PublisherDisplayName>
-    <Logo>icons\\StoreLogo.png</Logo>
-    <Description>Premium Dynamic Island and Smart Notch for Windows desktop.</Description>
+    <Logo>assets\\StoreLogo.png</Logo>
+    <Description>A premium Dynamic Island-style smart notch for Windows, bringing live activities, media controls, system insights and quick actions into one elegant desktop interface.</Description>
   </Properties>
+
+  <Resources>
+    <Resource Language="en-US" />
+  </Resources>
 
   <Dependencies>
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
   </Dependencies>
 
   <Capabilities>
-    <rescap:Capability Name="runFullTrust" />
     <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
   </Capabilities>
+
+  <Applications>
+    <Application Id="NOVAApp" Executable="app\\nova.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        BackgroundColor="#090D16"
+        DisplayName="NOVA NOTCH"
+        Square150x150Logo="assets\\Square150x150Logo.png"
+        Square44x44Logo="assets\\Square44x44Logo.png"
+        Description="NOVA NOTCH — Windows Smart Notch &amp; Dynamic Island">
+        <uap:DefaultTile Wide310x150Logo="assets\\Wide310x150Logo.png">
+          <uap:ShowNameOnTiles>
+            <uap:ShowOn Tile="wide310x150Logo" />
+            <uap:ShowOn Tile="square150x150Logo" />
+          </uap:ShowNameOnTiles>
+        </uap:DefaultTile>
+        <uap:SplashScreen Image="assets\\SplashScreen.png" />
+      </uap:VisualElements>
+      <Extensions>
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="nova">
+            <uap:DisplayName>NOVA Notch Launch Protocol</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
+        <desktop:Extension Category="windows.startupTask" Executable="app\\nova.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask TaskId="NOVAStartupTask" Enabled="true" DisplayName="NOVA NOTCH Background Service" />
+        </desktop:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
 </Package>`;
 
 export const MicrosoftStoreModal: React.FC<MicrosoftStoreModalProps> = ({ onClose }) => {
@@ -212,7 +247,7 @@ export const MicrosoftStoreModal: React.FC<MicrosoftStoreModalProps> = ({ onClos
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
             <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 space-y-0.5">
               <span className="text-slate-400 text-[10px]">Product Name</span>
-              <div className="text-white font-bold text-sm">NOVA</div>
+              <div className="text-white font-bold text-sm">NOVA NOTCH</div>
             </div>
             <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 space-y-0.5">
               <span className="text-slate-400 text-[10px]">Pricing</span>
@@ -409,11 +444,11 @@ export const MicrosoftStoreModal: React.FC<MicrosoftStoreModalProps> = ({ onClos
             </div>
             <div className="p-3 rounded-xl bg-white/5 border border-white/10 space-y-1">
               <span className="text-slate-400 text-[10px]">Version / Arch</span>
-              <div className="text-white font-bold">1.0.0.0 (x64 / ARM64)</div>
+              <div className="text-white font-bold">1.0.2.0 (x64 / ARM64)</div>
             </div>
             <div className="p-3 rounded-xl bg-white/5 border border-white/10 space-y-1">
-              <span className="text-slate-400 text-[10px]">Capability</span>
-              <div className="text-white font-bold text-sky-400">runFullTrust</div>
+              <span className="text-slate-400 text-[10px]">Capabilities</span>
+              <div className="text-white font-bold text-sky-400">runFullTrust + internetClient</div>
             </div>
           </div>
 
@@ -430,7 +465,7 @@ export const MicrosoftStoreModal: React.FC<MicrosoftStoreModalProps> = ({ onClos
 
           <div className="bg-black/60 border border-white/10 rounded-xl overflow-hidden">
             <div className="flex items-center justify-between px-3.5 py-2 bg-white/5 border-b border-white/10 text-xs">
-              <span className="font-mono text-slate-300">src-tauri/AppxManifest.xml</span>
+              <span className="font-mono text-slate-300">electron-builder.json → AppxManifest.xml (v1.0.2.0)</span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleCopyManifest}
@@ -458,39 +493,62 @@ export const MicrosoftStoreModal: React.FC<MicrosoftStoreModalProps> = ({ onClos
       {/* Tab 3: Partner Center Step-by-Step Guide */}
       {activeTab === 'upload_guide' && (
         <div className="space-y-3 text-xs leading-relaxed">
+          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-400/25 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="font-bold text-amber-200 flex items-center gap-1.5 text-xs">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                Partner Center Restricted Capability Approval (runFullTrust)
+              </h4>
+              <button
+                onClick={() => copyStoreText('runFullTrust Justification', RUN_FULL_TRUST_JUSTIFICATION)}
+                className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/30 text-[11px] font-semibold flex items-center gap-1 cursor-pointer shrink-0"
+              >
+                {copiedField === 'runFullTrust Justification' ? (
+                  <Check className="w-3 h-3 text-emerald-400" />
+                ) : (
+                  <Copy className="w-3 h-3" />
+                )}
+                <span>{copiedField === 'runFullTrust Justification' ? 'Copied' : 'Copy Justification'}</span>
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-snug">
+              Electron Desktop Bridge MSIX packages require <code className="text-amber-300 font-mono">rescap:runFullTrust</code>. In Partner Center → <strong>Submission options → Restricted capabilities</strong>, paste the technical justification above. Once approved on initial submission, future updates inherit approval automatically.
+            </p>
+          </div>
+
           <div className="p-3.5 rounded-xl bg-white/5 border border-white/10 space-y-2">
             <h4 className="font-bold text-white flex items-center gap-2 text-sm">
               <FolderArchive className="w-4 h-4 text-sky-400" />
-              How to Upload NOVA to Microsoft Partner Center
+              How to Upload NOVA NOTCH v1.0.2.0 to Microsoft Partner Center
             </h4>
             <ol className="list-decimal list-inside space-y-1.5 text-slate-300 text-[11px]">
               <li>
-                <strong>Generate the MSIX package:</strong> Run <code className="bg-black/40 px-1 py-0.5 rounded text-sky-300 font-mono">.\scripts\build-msix.ps1</code> on Windows or run the pre-configured GitHub Actions workflow in <code className="bg-black/40 px-1 py-0.5 rounded text-sky-300 font-mono">.github/workflows/store-release.yml</code>.
+                <strong>Generate the Electron MSIX package:</strong> Run <code className="bg-black/40 px-1 py-0.5 rounded text-sky-300 font-mono">npm run electron:msix</code> or <code className="bg-black/40 px-1 py-0.5 rounded text-sky-300 font-mono">.\scripts\build-msix.ps1</code> on Windows (or trigger <code className="bg-black/40 px-1 py-0.5 rounded text-sky-300 font-mono">.github/workflows/store-release.yml</code>).
               </li>
               <li>
-                <strong>Sign in to Partner Center:</strong> Navigate to <code className="text-sky-400">partner.microsoft.com/dashboard</code> and select your reserved app <em>NOVA — Windows Smart Notch</em>.
+                <strong>Sign in to Partner Center:</strong> Navigate to <code className="text-sky-400">partner.microsoft.com/dashboard</code> and select <em>NOVA NOTCH</em> (<code className="text-slate-300 font-mono">ChetanDixit.NOVANOTCH</code>).
               </li>
               <li>
-                <strong>Upload Package:</strong> In the <em>Packages</em> section, upload <code className="text-white font-mono">target/store_packages/NOVA_1.0.0.0_x64.msixbundle</code>. Partner Center will automatically validate the signature and manifest capabilities.
+                <strong>Upload Package:</strong> In <em>Packages</em>, upload <code className="text-white font-mono">release/NOVA-NOTCH-1.0.2.0-x64.msix</code> (or the multi-arch <code className="text-white font-mono">.msixbundle</code>).
               </li>
               <li>
-                <strong>Submit:</strong> Click <em>Submit to the Store</em>. Microsoft automated certification validates within 24–48 hours.
+                <strong>Complete Restricted Capability Declaration &amp; Submit:</strong> Paste the <code className="text-sky-300 font-mono">runFullTrust</code> justification under <em>Submission options</em> and click <em>Submit to the Store</em>.
               </li>
             </ol>
           </div>
 
           <div className="p-3 rounded-xl bg-sky-500/10 border border-sky-400/20 flex items-center justify-between">
             <div>
-              <span className="font-bold text-white block">Full Documentation Available</span>
-              <span className="text-[11px] text-slate-400">Refer to docs/MICROSOFT_STORE_GUIDE.md for complete details.</span>
+              <span className="font-bold text-white block">Full Electron MSIX Documentation Available</span>
+              <span className="text-[11px] text-slate-400">Refer to docs/MICROSOFT_STORE_GUIDE.md for complete Store certification steps.</span>
             </div>
             <button
               onClick={() => {
-                navigator.clipboard.writeText(".\\scripts\\build-msix.ps1 -Version 1.0.0.0");
+                navigator.clipboard.writeText('.\\scripts\\build-msix.ps1 -Version 1.0.2.0');
                 showToast({
                   appName: 'Microsoft Store',
                   title: 'Command Copied',
-                  message: 'PowerShell build command copied to clipboard.',
+                  message: 'Electron MSIX build command copied to clipboard.',
                   icon: 'Terminal',
                   duration: 2000
                 });

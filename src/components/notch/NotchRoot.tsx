@@ -81,10 +81,24 @@ export const NotchRoot: React.FC = () => {
   const expandedContentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState<number>(510);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(false);
-  const [screenBounds, setScreenBounds] = useState({
-    width: typeof window !== 'undefined' ? window.innerWidth : 1920,
-    height: typeof window !== 'undefined' ? window.innerHeight : 1080
-  });
+  const isNativeWindow = systemService.isNativeDesktop();
+  const getEffectiveScreenBounds = () => {
+    if (typeof window === 'undefined') return { width: 1920, height: 1080 };
+    // In a compact native desktop window (Electron), window.innerWidth/innerHeight
+    // reflect only the compact pill window (~150x64), so use physical monitor work-area bounds!
+    if (isNativeWindow || window.innerWidth <= 420 || window.innerHeight <= 180) {
+      return {
+        width: window.screen?.availWidth || window.screen?.width || 1920,
+        height: window.screen?.availHeight || window.screen?.height || 1080
+      };
+    }
+    return {
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  };
+
+  const [screenBounds, setScreenBounds] = useState(getEffectiveScreenBounds);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -94,10 +108,7 @@ export const NotchRoot: React.FC = () => {
     mql.addEventListener('change', handler);
 
     const handleResize = () => {
-      setScreenBounds({
-        width: window.innerWidth,
-        height: window.innerHeight
-      });
+      setScreenBounds(getEffectiveScreenBounds());
     };
     window.addEventListener('resize', handleResize);
 
@@ -105,7 +116,7 @@ export const NotchRoot: React.FC = () => {
       mql.removeEventListener('change', handler);
       window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [isNativeWindow]);
 
   useEffect(() => {
     if (!expandedContentRef.current) return;
@@ -204,11 +215,18 @@ export const NotchRoot: React.FC = () => {
   const targetWidth = isExpanded ? maxAllowedWidth : responsiveCompactWidth;
   const targetHeight = isExpanded ? maxAllowedHeight : baseCompactHeight;
 
-  // Synchronize Tauri native window bounds and top-center positioning with zero resize flicker
+  const hasFullscreenOverlay = invisibilityCloakActive || isFullscreenMusicOpen || isDetached;
+  const hasSecondaryToast = !isExpanded && toasts.length > 1;
+
+  // Synchronize native desktop window bounds and top-center positioning with zero startup flash
   useEffect(() => {
     const numHeight = typeof targetHeight === 'number' ? targetHeight : 340;
-    systemService.syncNativeWindow(isExpanded, targetWidth, numHeight);
-  }, [isExpanded, targetWidth, targetHeight]);
+    const effectiveNativeWidth = hasSecondaryToast ? Math.max(targetWidth, 370) : targetWidth;
+    const effectiveNativeHeight = hasSecondaryToast ? Math.max(numHeight, 170) : numHeight;
+    systemService.syncNativeWindow(isExpanded || hasSecondaryToast, effectiveNativeWidth, effectiveNativeHeight, {
+      fullscreen: hasFullscreenOverlay
+    });
+  }, [isExpanded, targetWidth, targetHeight, hasFullscreenOverlay, hasSecondaryToast]);
 
   const targetCornerRadius = isExpanded ? 24 : 18;
 
@@ -480,8 +498,9 @@ export const NotchRoot: React.FC = () => {
   );
 
   const [isDraggingNow, setIsDraggingNow] = useState<boolean>(false);
-  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const pointerStartRef = useRef<{ x: number; y: number; screenX: number; screenY: number } | null>(null);
   const notchStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const lastScreenPtRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const hasMovedRef = useRef<boolean>(false);
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -503,7 +522,13 @@ export const NotchRoot: React.FC = () => {
       return;
     }
 
-    pointerStartRef.current = { x: e.clientX, y: e.clientY };
+    pointerStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      screenX: e.screenX,
+      screenY: e.screenY
+    };
+    lastScreenPtRef.current = { x: e.screenX, y: e.screenY };
     notchStartRef.current = { x: activePos.x, y: activePos.y };
     hasMovedRef.current = false;
     try {
@@ -513,6 +538,25 @@ export const NotchRoot: React.FC = () => {
 
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!pointerStartRef.current) return;
+
+    if (isNativeWindow && !hasFullscreenOverlay) {
+      const sdx = e.screenX - pointerStartRef.current.screenX;
+      const sdy = e.screenY - pointerStartRef.current.screenY;
+      if (!hasMovedRef.current && (Math.abs(sdx) > 4 || Math.abs(sdy) > 4)) {
+        hasMovedRef.current = true;
+        setIsDraggingNow(true);
+      }
+      if (hasMovedRef.current) {
+        const stepX = e.screenX - lastScreenPtRef.current.x;
+        const stepY = e.screenY - lastScreenPtRef.current.y;
+        lastScreenPtRef.current = { x: e.screenX, y: e.screenY };
+        if (stepX !== 0 || stepY !== 0) {
+          systemService.moveNativeWindowBy(stepX, stepY);
+        }
+      }
+      return;
+    }
+
     const dx = e.clientX - pointerStartRef.current.x;
     const dy = e.clientY - pointerStartRef.current.y;
 
@@ -549,6 +593,20 @@ export const NotchRoot: React.FC = () => {
     }
   };
 
+  // In compact/expanded native Electron window mode, the OS window itself is centered around the notch,
+  // so center the pill inside the transparent window with clean shadow breathing room.
+  const containerStyle: React.CSSProperties =
+    isNativeWindow && !hasFullscreenOverlay
+      ? {
+          left: '50%',
+          top: '8px',
+          transform: 'translateX(-50%)'
+        }
+      : {
+          left: `${activePos.x}px`,
+          top: `${activePos.y}px`
+        };
+
   return (
     <>
       {/* 1. Invisibility Cloak Fullscreen Privacy Layer */}
@@ -575,10 +633,7 @@ export const NotchRoot: React.FC = () => {
       <div
         id="nova-notch-container"
         className="fixed z-50 pointer-events-none select-none transition-[left,top] duration-75 ease-out"
-        style={{
-          left: `${activePos.x}px`,
-          top: `${activePos.y}px`
-        }}
+        style={containerStyle}
       >
         {/* Invisible safe buffer with drag handlers & mouse shake listener */}
         <div

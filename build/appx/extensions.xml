@@ -1,0 +1,6 @@
+        <desktop:Extension Category="windows.startupTask" Executable="app\nova.exe" EntryPoint="Windows.FullTrustApplication">
+          <desktop:StartupTask
+            TaskId="NOVAStartupTask"
+            Enabled="true"
+            DisplayName="NOVA NOTCH Background Service" />
+        </desktop:Extension>

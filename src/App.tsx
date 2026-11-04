@@ -7,12 +7,8 @@ const MainLayout: React.FC = () => {
   const { isExpanded, collapseNotch } = useNotch();
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-gradient-to-br from-[#06080e] via-[#0b101c] to-[#04060a] text-slate-100 select-none">
-      {/* 1. Subtle ambient illumination behind the floating notch */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[680px] h-[260px] bg-sky-500/[0.04] blur-[120px] rounded-full pointer-events-none" />
-      <div className="absolute bottom-10 right-1/4 w-[420px] h-[260px] bg-indigo-500/[0.03] blur-[110px] rounded-full pointer-events-none" />
-
-      {/* 2. Backdrop click handler to collapse notch if clicked outside */}
+    <div className="relative w-screen h-screen overflow-hidden bg-transparent pointer-events-none text-slate-100 select-none">
+      {/* Backdrop click handler to collapse notch when clicked outside while expanded */}
       {isExpanded && (
         <div
           onClick={collapseNotch}
@@ -21,10 +17,10 @@ const MainLayout: React.FC = () => {
         />
       )}
 
-      {/* 3. Dynamic Smart Notch (Draggable, hover-expanded App Launcher) */}
+      {/* Compact-first Dynamic Smart Notch */}
       <NotchRoot />
 
-      {/* 4. Notification Toast Center */}
+      {/* Notification Toast Center (renders only when active secondary toasts exist) */}
       <NotchToastCenter />
     </div>
   );

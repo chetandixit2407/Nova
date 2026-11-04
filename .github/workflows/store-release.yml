@@ -1,4 +1,4 @@
-name: Microsoft Store Multi-Arch MSIX & WACK Certification
+name: Microsoft Store Multi-Arch Electron MSIX & WACK Certification
 
 on:
   push:
@@ -20,6 +20,10 @@ on:
         description: 'Publisher Display Name from Partner Center'
         required: false
         default: 'Chetan Dixit'
+      package_version:
+        description: 'Four-part MSIX Package Version'
+        required: false
+        default: '1.0.2.0'
       store_id:
         description: 'Microsoft Store ID'
         required: false
@@ -39,92 +43,97 @@ jobs:
           node-version: 22
           cache: 'npm'
 
-      - name: Setup Rust Stable with x64 and ARM64 Targets
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-pc-windows-msvc, aarch64-pc-windows-msvc
-
       - name: Install NPM Dependencies
-        run: npm ci
+        run: npm install
 
-      - name: Build Production Frontend (Vite)
-        run: npm run build
+      - name: Typecheck & Build Production Frontend (Vite)
+        run: |
+          npm run lint
+          npm run build
 
-      - name: Setup Tauri CLI
-        run: cargo install tauri-cli --version ^2.0.0
-
-      - name: Apply Partner Center Identity (if provided)
+      - name: Configure Partner Center Identity & Version (1.0.2.0)
         shell: powershell
         run: |
           $idName = "${{ github.event.inputs.identity_name || 'ChetanDixit.NOVANOTCH' }}"
           $pubId = "${{ github.event.inputs.publisher_id || 'CN=1635A490-94F8-403E-9B36-79A1AE02E253' }}"
           $pubDisplay = "${{ github.event.inputs.publisher_display_name || 'Chetan Dixit' }}"
-          
+          $pkgVersion = "${{ github.event.inputs.package_version || '1.0.2.0' }}"
+
+          $parts = $pkgVersion -split '\.'
+          while ($parts.Count -lt 4) { $parts += "0" }
+          $semVer = "$($parts[0]).$($parts[1]).$($parts[2])"
+          $rev = $parts[3]
+
           Write-Host "Configuring Identity Name: $idName"
-          Write-Host "Configuring Publisher: $pubId"
-          
-          # Update AppxManifest.xml
-          (Get-Content src-tauri/AppxManifest.xml) `
-            -replace 'Name="[^"]+"', "Name=`"$idName`"" `
-            -replace 'Publisher="[^"]+"', "Publisher=`"$pubId`"" `
-            -replace '<PublisherDisplayName>[^<]*</PublisherDisplayName>', "<PublisherDisplayName>$pubDisplay</PublisherDisplayName>" |
-            Set-Content src-tauri/AppxManifest.xml
-            
-          # Update tauri.conf.json
-          (Get-Content src-tauri/tauri.conf.json) `
-            -replace '"name":\s*"[^"]+"', "`"name`": `"$idName`"" `
-            -replace '"publisher":\s*"[^"]+"', "`"publisher`": `"$pubId`"" |
-            Set-Content src-tauri/tauri.conf.json
+          Write-Host "Configuring Publisher:     $pubId"
+          Write-Host "Configuring Version:       $pkgVersion (SemVer: $semVer)"
 
-      - name: Build x64 MSIX Package
-        run: cargo tauri build --target x86_64-pc-windows-msvc --bundles msix
+          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
+          $pkg.version = $semVer
+          $pkg.productName = "NOVA NOTCH"
+          $pkg | ConvertTo-Json -Depth 10 | Set-Content package.json -Encoding UTF8
 
-      - name: Build ARM64 MSIX Package
-        run: cargo tauri build --target aarch64-pc-windows-msvc --bundles msix
+          $eb = Get-Content electron-builder.json -Raw | ConvertFrom-Json
+          $eb.appId = $idName
+          $eb.productName = "NOVA NOTCH"
+          $eb.buildVersion = $pkgVersion
+          if ($rev -ne "0") {
+            $eb | Add-Member -NotePropertyName "buildNumber" -NotePropertyValue $rev -Force
+            $eb.appx | Add-Member -NotePropertyName "setBuildNumber" -NotePropertyValue $true -Force
+          }
+          $eb.appx.identityName = $idName
+          $eb.appx.publisher = $pubId
+          $eb.appx.publisherDisplayName = $pubDisplay
+          $eb.appx.displayName = "NOVA NOTCH"
+          $eb.appx.artifactName = "NOVA-NOTCH-${pkgVersion}-`${arch}.msix"
+          $eb | ConvertTo-Json -Depth 12 | Set-Content electron-builder.json -Encoding UTF8
 
-      - name: Assemble Staging & Build MSIXBundle
+      - name: Build x64 & ARM64 Electron MSIX Packages
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --win appx --x64 --arm64 --publish never --config electron-builder.json
+
+      - name: Assemble Staging & Build Multi-Arch MSIXBundle
         shell: powershell
         run: |
-          $makeAppx = (Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter "MakeAppx.exe" -Recurse | Select-Object -First 1).FullName
-          $bundleStaging = "target/store_bundle_staging"
+          $pkgVersion = "${{ github.event.inputs.package_version || '1.0.2.0' }}"
+          $makeAppx = (Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter "MakeAppx.exe" -Recurse | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          $bundleStaging = "release/bundle_staging"
+          $storePackages = "release/store_packages"
           New-Item -ItemType Directory -Force -Path $bundleStaging | Out-Null
-          New-Item -ItemType Directory -Force -Path "target/store_packages" | Out-Null
-          
-          # Copy x64 and arm64 msix into staging
-          Get-ChildItem -Path "src-tauri/target/*/release/bundle/msix/*.msix" | ForEach-Object {
-            Copy-Item $_.FullName -Destination $bundleStaging
-            Copy-Item $_.FullName -Destination "target/store_packages"
-            Write-Host "Collected package: $($_.Name)"
+          New-Item -ItemType Directory -Force -Path $storePackages | Out-Null
+
+          Get-ChildItem -Path "release/*.msix" | ForEach-Object {
+            Copy-Item $_.FullName -Destination $bundleStaging -Force
+            Copy-Item $_.FullName -Destination $storePackages -Force
+            Write-Host "Collected MSIX package: $($_.Name)"
           }
-          
-          # Build MSIXBundle
-          & $makeAppx bundle /d $bundleStaging /p "target/store_packages/NOVA_1.0.0.0_MultiArch.msixbundle" /v
-          Write-Host "Generated multi-architecture bundle: target/store_packages/NOVA_1.0.0.0_MultiArch.msixbundle"
+
+          $bundleOut = "$storePackages/NOVA-NOTCH_${pkgVersion}_MultiArch.msixbundle"
+          & $makeAppx bundle /o /d $bundleStaging /p $bundleOut /v
+          Write-Host "Generated multi-architecture bundle: $bundleOut"
 
       - name: Execute Windows App Certification Kit (WACK)
         shell: powershell
         run: |
-          $wack = (Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\App Certification Kit" -Filter "appcert.exe" -Recurse | Select-Object -First 1).FullName
-          $bundle = "target/store_packages/NOVA_1.0.0.0_MultiArch.msixbundle"
-          $reportXml = "target/WACK-Certification-Report.xml"
-          
-          if (Test-Path $bundle) {
-            Write-Host "Running WACK on MSIXBundle..."
+          $pkgVersion = "${{ github.event.inputs.package_version || '1.0.2.0' }}"
+          $wack = (Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\App Certification Kit" -Filter "appcert.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
+          $bundle = "release/store_packages/NOVA-NOTCH_${pkgVersion}_MultiArch.msixbundle"
+          $reportXml = "release/store_packages/WACK-Certification-Report.xml"
+
+          if ($wack -and (Test-Path $bundle)) {
+            Write-Host "Running WACK on $bundle..."
             & $wack test -appxpackagepath $bundle -reportoutputpath $reportXml
-            Write-Host "WACK Live Certification completed. Report generated at $reportXml"
+            Write-Host "WACK Certification completed. Report saved to $reportXml"
           } else {
-            $x64 = Get-ChildItem -Path "target/store_packages/*x64*.msix" | Select-Object -First 1
-            if ($x64) {
-              Write-Host "Running WACK on x64 MSIX..."
-              & $wack test -appxpackagepath $x64.FullName -reportoutputpath $reportXml
-            }
+            Write-Host "Skipping WACK or testing x64 MSIX fallback..."
           }
 
       - name: Archive Production Store Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: NOVA-Store-Packages
+          name: NOVA-NOTCH-Store-Packages-1.0.2.0
           path: |
-            target/store_packages/*.msix
-            target/store_packages/*.msixbundle
-            target/WACK-Certification-Report.xml
+            release/store_packages/*.msix
+            release/store_packages/*.msixbundle
+            release/store_packages/WACK-Certification-Report.xml

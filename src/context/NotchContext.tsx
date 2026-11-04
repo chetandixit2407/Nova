@@ -347,7 +347,21 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
 
   const [weather, setWeather] = useState<WeatherData | null>(null);
-  const [viewMode, setViewMode] = useState<'desktop' | 'overlay'>('desktop');
+  const [viewMode, setViewModeState] = useState<'desktop' | 'overlay'>(() => {
+    try {
+      const saved = localStorage.getItem('nova_view_mode');
+      if (saved === 'desktop' || saved === 'overlay') return saved;
+    } catch {}
+    return 'overlay';
+  });
+
+  const setViewMode = useCallback((mode: 'desktop' | 'overlay') => {
+    setViewModeState(mode);
+    try {
+      localStorage.setItem('nova_view_mode', mode);
+    } catch {}
+    soundService.playTick();
+  }, []);
   const [wallpaperIndex, setWallpaperIndex] = useState<number>(0);
   const [isScreenCopyMode, setIsScreenCopyMode] = useState<boolean>(false);
   const [flyingTextItems, setFlyingTextItems] = useState<FlyingTextItem[]>([]);
@@ -386,7 +400,9 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const collapseTimerRef = useRef<number | null>(null);
+  const hoverOpenTimerRef = useRef<number | null>(null);
   const isHoveredRef = useRef<boolean>(false);
+  const lastToggleTimeRef = useRef<number>(0);
 
   // Save config
   const updateConfig = useCallback((patch: Partial<NotchConfig>) => {
@@ -542,6 +558,10 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       clearTimeout(collapseTimerRef.current);
       collapseTimerRef.current = null;
     }
+    if (hoverOpenTimerRef.current) {
+      clearTimeout(hoverOpenTimerRef.current);
+      hoverOpenTimerRef.current = null;
+    }
     setIsExpanded((prev) => {
       if (!prev) soundService.playPop();
       return true;
@@ -549,6 +569,10 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const collapseNotch = useCallback(() => {
+    if (hoverOpenTimerRef.current) {
+      clearTimeout(hoverOpenTimerRef.current);
+      hoverOpenTimerRef.current = null;
+    }
     if (isPinned) return; // Do not collapse if pinned
     setIsExpanded((prev) => {
       if (prev) soundService.playSnap();
@@ -557,6 +581,19 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [isPinned]);
 
   const toggleExpand = useCallback(() => {
+    const now = Date.now();
+    if (now - lastToggleTimeRef.current < 160) return; // Debounce rapid double clicks
+    lastToggleTimeRef.current = now;
+
+    if (hoverOpenTimerRef.current) {
+      clearTimeout(hoverOpenTimerRef.current);
+      hoverOpenTimerRef.current = null;
+    }
+    if (collapseTimerRef.current) {
+      clearTimeout(collapseTimerRef.current);
+      collapseTimerRef.current = null;
+    }
+
     setIsExpanded((prev) => {
       if (!prev) soundService.playPop();
       else soundService.playSnap();
@@ -578,23 +615,34 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       collapseTimerRef.current = null;
     }
     if (config.hoverExpansion && !isExpanded) {
-      expandNotch();
+      if (hoverOpenTimerRef.current) clearTimeout(hoverOpenTimerRef.current);
+      // Small 75ms dwell check to prevent accidental rapid sweep opens
+      hoverOpenTimerRef.current = window.setTimeout(() => {
+        if (isHoveredRef.current && !isExpanded) {
+          expandNotch();
+        }
+      }, 75);
     }
   }, [config.hoverExpansion, isExpanded, expandNotch]);
 
   const handleMouseLeave = useCallback(() => {
     isHoveredRef.current = false;
+    if (hoverOpenTimerRef.current) {
+      clearTimeout(hoverOpenTimerRef.current);
+      hoverOpenTimerRef.current = null;
+    }
     if (isPinned) return;
 
     if (collapseTimerRef.current) {
       clearTimeout(collapseTimerRef.current);
     }
 
+    // Comfortable grace period (min 200ms) so mouse movement into panels never drops
     collapseTimerRef.current = window.setTimeout(() => {
       if (!isHoveredRef.current && !isPinned) {
         collapseNotch();
       }
-    }, config.graceDelay);
+    }, Math.max(config.graceDelay || 120, 200));
   }, [isPinned, config.graceDelay, collapseNotch]);
 
   // Tasks actions

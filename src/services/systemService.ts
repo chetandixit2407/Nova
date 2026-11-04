@@ -334,13 +334,31 @@ class SystemService {
     const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-
     return {
       name: file.name,
       size: file.size,
       hash: hashHex.slice(0, 16) + '...',
       type: file.type || 'application/octet-stream'
     };
+  }
+
+  /**
+   * Synchronize native Tauri window size & position with React animation state
+   * Prevents resize flicker and guarantees top-center anchoring on Windows
+   */
+  public async syncNativeWindow(isExpanded: boolean, width: number, height: number): Promise<void> {
+    try {
+      const tauri = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (cmd: string, args?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__;
+      if (tauri && typeof tauri.invoke === 'function') {
+        await tauri.invoke('sync_notch_window', {
+          isExpanded,
+          width: Math.round(width),
+          height: Math.round(height)
+        });
+      }
+    } catch {
+      // In web browser preview or if command not ready, noop silently
+    }
   }
 }
 

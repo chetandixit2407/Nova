@@ -44,6 +44,34 @@ export const NotchRoot: React.FC = () => {
   const [foregroundApp, setForegroundApp] = useState<WindowsApp | null>(null);
   const [launchStage, setLaunchStage] = useState<'pop' | 'compact' | 'expanded' | null>(null);
 
+  // Dynamic Island content measurement and OS reduced-motion sensitivity
+  const expandedContentRef = useRef<HTMLDivElement>(null);
+  const [contentHeight, setContentHeight] = useState<number>(510);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setPrefersReducedMotion(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, []);
+
+  useEffect(() => {
+    if (!expandedContentRef.current) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const h = entry.borderBoxSize?.[0]?.blockSize || entry.contentRect.height;
+        if (h && h > 120) {
+          setContentHeight(Math.round(h));
+        }
+      }
+    });
+    ro.observe(expandedContentRef.current);
+    return () => ro.disconnect();
+  }, [isExpanded]);
+
   // Mouse shake detection inside notch for Invisibility Cloak activation
   const lastShakeRef = useRef<{ lastX: number; lastDir: number; count: number; lastTime: number }>({
     lastX: 0,
@@ -135,7 +163,7 @@ export const NotchRoot: React.FC = () => {
     : baseCompactWidth;
 
   const targetHeight = isExpanded
-    ? 'auto'
+    ? Math.max(460, contentHeight || 510)
     : shapeConfig
     ? shapeConfig.height
     : launchStage === 'pop'
@@ -145,6 +173,12 @@ export const NotchRoot: React.FC = () => {
     : launchStage === 'expanded'
     ? 96
     : baseCompactHeight;
+
+  // Synchronize Tauri native window bounds and top-center positioning with zero resize flicker
+  useEffect(() => {
+    const numHeight = typeof targetHeight === 'number' ? targetHeight : 540;
+    systemService.syncNativeWindow(isExpanded, targetWidth, numHeight);
+  }, [isExpanded, targetWidth, targetHeight]);
 
   const targetCornerRadius = isExpanded
     ? config.cornerRadius
@@ -331,34 +365,36 @@ export const NotchRoot: React.FC = () => {
   };
 
   // Precision spring physics configuration for 60fps fluid morphing
-  const morphSpringTransition = {
-    width: {
-      type: 'spring' as const,
-      stiffness: 480,
-      damping: 32,
-      mass: 0.48,
-      restDelta: 0.05
-    },
-    height: {
-      type: 'spring' as const,
-      stiffness: 480,
-      damping: 32,
-      mass: 0.48,
-      restDelta: 0.05
-    },
-    borderRadius: {
-      type: 'spring' as const,
-      stiffness: 440,
-      damping: 28,
-      mass: 0.46,
-      restDelta: 0.05
-    },
-    scale: {
-      type: 'spring' as const,
-      stiffness: 520,
-      damping: 30
-    }
-  };
+  const morphSpringTransition = prefersReducedMotion
+    ? { duration: 0.01 }
+    : {
+        width: {
+          type: 'spring' as const,
+          stiffness: 480,
+          damping: 32,
+          mass: 0.48,
+          restDelta: 0.05
+        },
+        height: {
+          type: 'spring' as const,
+          stiffness: 480,
+          damping: 32,
+          mass: 0.48,
+          restDelta: 0.05
+        },
+        borderRadius: {
+          type: 'spring' as const,
+          stiffness: 440,
+          damping: 28,
+          mass: 0.46,
+          restDelta: 0.05
+        },
+        scale: {
+          type: 'spring' as const,
+          stiffness: 520,
+          damping: 30
+        }
+      };
 
   // Flexible notch placement classes (Feature 8)
   const getPlacementClass = () => {
@@ -459,6 +495,7 @@ export const NotchRoot: React.FC = () => {
               <AnimatePresence mode="wait" initial={false}>
                 {isExpanded ? (
                   <motion.div
+                    ref={expandedContentRef}
                     key="expanded"
                     initial={{ opacity: 0, y: -4, scale: 0.985 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}

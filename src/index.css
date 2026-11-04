@@ -12,6 +12,13 @@
     font-family: var(--font-sans);
     user-select: none;
     -webkit-user-select: none;
+    background: transparent !important;
+  }
+
+  html,
+  body,
+  #root {
+    background-color: transparent !important;
   }
 }
 

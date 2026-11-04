@@ -4,7 +4,7 @@
 use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     menu::{MenuBuilder, MenuItemBuilder},
-    Manager, Emitter,
+    Manager, Emitter, Position, PhysicalPosition, Size, PhysicalSize,
 };
 
 #[tauri::command]
@@ -31,6 +31,23 @@ fn trigger_haptic_feedback(feedback_type: String) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn sync_notch_window(app: tauri::AppHandle, is_expanded: bool, width: u32, height: u32) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        if let Ok(Some(monitor)) = window.current_monitor() {
+            let screen_size = monitor.size();
+            let x = ((screen_size.width as i32) - (width as i32)) / 2;
+            let _ = window.set_position(Position::Physical(PhysicalPosition { x, y: 0 }));
+            let _ = window.set_size(Size::Physical(PhysicalSize { width, height }));
+        }
+        let _ = window.set_always_on_top(true);
+        let _ = is_expanded;
+        Ok(())
+    } else {
+        Err("Main window not found".into())
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -43,7 +60,8 @@ fn main() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             toggle_notch_visibility,
-            trigger_haptic_feedback
+            trigger_haptic_feedback,
+            sync_notch_window
         ])
         .setup(|app| {
             let app_handle = app.handle().clone();
@@ -107,9 +125,16 @@ fn main() {
                 })
                 .build(app)?;
 
-            // Apply Windows 11 DWM rounded corners and always-on-top behavior
+            // Apply Windows 11 top-center positioning and always-on-top behavior
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.set_always_on_top(true);
+                if let Ok(Some(monitor)) = window.current_monitor() {
+                    let screen_size = monitor.size();
+                    if let Ok(win_size) = window.outer_size() {
+                        let x = ((screen_size.width as i32) - (win_size.width as i32)) / 2;
+                        let _ = window.set_position(Position::Physical(PhysicalPosition { x, y: 0 }));
+                    }
+                }
             }
 
             Ok(())

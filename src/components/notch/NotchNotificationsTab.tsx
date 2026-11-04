@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Bell,
   BellOff,
@@ -10,11 +9,15 @@ import {
   Sparkles,
   AlertCircle,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Smartphone,
+  PhoneCall,
+  MessageCircle
 } from 'lucide-react';
 import { useNotch } from '../../context/NotchContext';
 import { AppNotification } from '../../types';
 import { NotificationIconAnimation, NotificationAnimationType } from '../notifications/NotificationIconAnimation';
+import { phoneSyncService } from '../../services/phoneSyncService';
 
 export const NotchNotificationsTab: React.FC = () => {
   const {
@@ -155,11 +158,15 @@ export const NotchNotificationsTab: React.FC = () => {
       {/* 9 Unique Notification Animation Triggers */}
       <div className="space-y-1.5">
         <div className="text-[11px] font-bold text-slate-300 px-1 uppercase tracking-wider flex items-center justify-between">
-          <span>9 Unique Animation Types (Click to test in Notch)</span>
-          <span className="text-[10px] text-sky-400 font-mono">Real-time GPU motion</span>
+          <span>Live Animated Notification Types (Click to test in Notch)</span>
+          <span className="text-[10px] text-sky-400 font-mono">Real-time Phone & OS Sync</span>
         </div>
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
           {[
+            { label: '📞 Call Ringing', type: 'incoming_call', title: 'Sophia Martinez', msg: '+1 (555) 019-2834 • Cellular', app: 'Phone', isCall: true },
+            { label: '💬 WhatsApp', type: 'whatsapp', title: 'Marcus Chen', msg: 'The new notch animations look incredible!', app: 'WhatsApp' },
+            { label: '✉️ SMS Code', type: 'sms', title: 'Chase Bank', msg: '792014 is your verification code.', app: 'Messages' },
+            { label: '❌ Missed Call', type: 'missed_call', title: 'Mom (2)', msg: 'Missed Call • Tap to call back', app: 'Phone' },
             { label: 'Message', type: 'message', title: 'New Message from Alex', msg: 'The sprint review is confirmed for 2 PM.', app: 'Teams' },
             { label: 'Download', type: 'download', title: 'Downloading Unreal Engine', msg: '1.2 GB of 4.8 GB · 14.2 MB/s', app: 'Epic Games' },
             { label: 'Complete', type: 'download_complete', title: 'VS Code Downloaded', msg: 'Package verified with SHA-256 integrity.', app: 'Downloads' },
@@ -171,8 +178,16 @@ export const NotchNotificationsTab: React.FC = () => {
             { label: 'Update', type: 'system_update', title: 'Windows 11 Update', msg: 'Security intelligence definitions updated.', app: 'Windows Update' }
           ].map((item) => (
             <button
-              key={item.type}
+              key={item.label}
               onClick={() => {
+                if (item.type === 'incoming_call') {
+                  phoneSyncService.triggerIncomingCall({
+                    callerName: 'Sophia Martinez',
+                    callerNumber: '+1 (555) 019-2834',
+                    appType: 'cellular'
+                  });
+                  return;
+                }
                 showToast({
                   appName: item.app,
                   title: item.title,

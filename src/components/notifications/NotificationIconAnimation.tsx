@@ -10,7 +10,11 @@ import {
   Music,
   Timer,
   RefreshCw,
-  Bell
+  Bell,
+  PhoneCall,
+  PhoneIncoming,
+  PhoneMissed,
+  MessageCircle
 } from 'lucide-react';
 
 export type NotificationAnimationType =
@@ -23,6 +27,10 @@ export type NotificationAnimationType =
   | 'music'
   | 'timer_complete'
   | 'system_update'
+  | 'incoming_call'
+  | 'missed_call'
+  | 'whatsapp'
+  | 'sms'
   | 'default';
 
 interface NotificationIconAnimationProps {
@@ -43,7 +51,11 @@ export const NotificationIconAnimation: React.FC<NotificationIconAnimationProps>
   // Resolve type from string keywords
   const resolveType = (): NotificationAnimationType => {
     const t = type.toLowerCase();
-    if (t.includes('message') || t.includes('chat') || t.includes('mail') || t.includes('sms')) return 'message';
+    if (t.includes('incoming_call') || t.includes('ringing')) return 'incoming_call';
+    if (t.includes('missed_call') || t.includes('missed')) return 'missed_call';
+    if (t.includes('whatsapp')) return 'whatsapp';
+    if (t.includes('sms')) return 'sms';
+    if (t.includes('message') || t.includes('chat') || t.includes('mail')) return 'message';
     if (t.includes('download_complete') || t.includes('succeeded') || t.includes('merged') || t.includes('completed')) return 'download_complete';
     if (t.includes('download') || t.includes('installing') || t.includes('transfer')) return 'download';
     if (t.includes('warn') || t.includes('caution') || t.includes('threat')) return 'warning';
@@ -58,6 +70,72 @@ export const NotificationIconAnimation: React.FC<NotificationIconAnimationProps>
   const animType = resolveType();
 
   switch (animType) {
+    // 0A. Incoming Phone Call: Ringing phone with expanding concentric soundwaves
+    case 'incoming_call':
+      return (
+        <div
+          className={`${dims.box} rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 flex items-center justify-center relative shadow-[0_0_16px_rgba(16,185,129,0.4)] shrink-0`}
+        >
+          <motion.div
+            animate={{ rotate: [-10, 10, -10, 10, 0] }}
+            transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 0.4 }}
+          >
+            <PhoneIncoming className={dims.icon} />
+          </motion.div>
+          <motion.span
+            animate={{ scale: [1, 2], opacity: [0.8, 0] }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: 'easeOut' }}
+            className="absolute inset-0 rounded-xl border-2 border-emerald-400 pointer-events-none"
+          />
+          <motion.span
+            animate={{ scale: [1, 2], opacity: [0.8, 0] }}
+            transition={{ duration: 1.2, repeat: Infinity, ease: 'easeOut', delay: 0.4 }}
+            className="absolute inset-0 rounded-xl border-2 border-emerald-300 pointer-events-none"
+          />
+        </div>
+      );
+
+    // 0B. Missed Call
+    case 'missed_call':
+      return (
+        <motion.div
+          animate={{ scale: [1, 1.05, 1] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className={`${dims.box} rounded-xl bg-rose-500/20 border border-rose-400/50 text-rose-300 flex items-center justify-center relative shadow-[0_0_12px_rgba(244,63,94,0.35)] shrink-0`}
+        >
+          <PhoneMissed className={dims.icon} />
+        </motion.div>
+      );
+
+    // 0C. WhatsApp: Authentic Green with pulse
+    case 'whatsapp':
+      return (
+        <motion.div
+          animate={{ scale: [1, 1.06, 1] }}
+          transition={{ duration: 1.8, repeat: Infinity }}
+          className={`${dims.box} rounded-xl bg-[#25D366]/25 border border-[#25D366]/60 text-[#25D366] flex items-center justify-center relative shadow-[0_0_14px_rgba(37,211,102,0.4)] shrink-0`}
+        >
+          <MessageCircle className={dims.icon} />
+          <motion.span
+            animate={{ scale: [0.8, 1.3, 0.8] }}
+            transition={{ duration: 1.4, repeat: Infinity }}
+            className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#25D366] shadow-[0_0_6px_#25D366]"
+          />
+        </motion.div>
+      );
+
+    // 0D. SMS Text Message
+    case 'sms':
+      return (
+        <motion.div
+          animate={{ scale: [1, 1.05, 1] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          className={`${dims.box} rounded-xl bg-sky-500/25 border border-sky-400/60 text-sky-300 flex items-center justify-center relative shadow-[0_0_12px_rgba(56,189,248,0.35)] shrink-0`}
+        >
+          <MessageSquare className={dims.icon} />
+        </motion.div>
+      );
+
     // 1. Message: gentle breathing pulse with staggered typing dot effects
     case 'message':
       return (

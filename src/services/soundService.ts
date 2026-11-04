@@ -232,6 +232,130 @@ class SoundEngine {
       // Audio policy fallback
     }
   }
+  // Phone incoming call ringing loop (Dual-tone melodic ring with repeat)
+  private ringTimer: number | null = null;
+  public playPhoneRing() {
+    if (!this.isEnabled) return;
+    this.stopPhoneRing();
+
+    const doRingBurst = () => {
+      try {
+        const ctx = this.getContext();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+
+        // Dual melodic tone chord (853Hz + 960Hz / modern digital ring)
+        [853, 960].forEach((freq) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now);
+
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.linearRampToValueAtTime(0.18 * this.volume, now + 0.05);
+          gain.gain.setValueAtTime(0.18 * this.volume, now + 0.4);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+
+          // Second burst in pattern
+          const now2 = now + 0.65;
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.type = 'sine';
+          osc2.frequency.setValueAtTime(freq * 1.05, now2);
+          gain2.gain.setValueAtTime(0, now2);
+          gain2.gain.linearRampToValueAtTime(0.18 * this.volume, now2 + 0.05);
+          gain2.gain.setValueAtTime(0.18 * this.volume, now2 + 0.4);
+          gain2.gain.exponentialRampToValueAtTime(0.001, now2 + 0.55);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.6);
+
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          osc2.start(now2);
+          osc2.stop(now2 + 0.6);
+        });
+
+        // Trigger vibration if supported
+        this.triggerVibration([250, 150, 250, 600]);
+      } catch {}
+    };
+
+    doRingBurst();
+    this.ringTimer = window.setInterval(doRingBurst, 2800);
+  }
+
+  public stopPhoneRing() {
+    if (this.ringTimer) {
+      clearInterval(this.ringTimer);
+      this.ringTimer = null;
+    }
+  }
+
+  // Modern crisp phone message alert chime (WhatsApp / SMS style)
+  public playPhoneChime(type: 'whatsapp' | 'sms' | 'alert' = 'whatsapp') {
+    if (!this.isEnabled) return;
+    try {
+      const ctx = this.getContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const frequencies = type === 'whatsapp' ? [659.25, 880] : [587.33, 783.99, 1046.5];
+
+      frequencies.forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const start = now + idx * 0.06;
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, start);
+
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(0.25 * this.volume, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.32);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.35);
+      });
+
+      this.triggerVibration([120, 80, 120]);
+    } catch {}
+  }
+
+  // Call disconnected tone (3 short beeps)
+  public playCallEndTone() {
+    if (!this.isEnabled) return;
+    this.stopPhoneRing();
+    try {
+      const ctx = this.getContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      [0, 0.18, 0.36].forEach((offset) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const start = now + offset;
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(425, start);
+        gain.gain.setValueAtTime(0.18 * this.volume, start);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.12);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(start);
+        osc.stop(start + 0.13);
+      });
+    } catch {}
+  }
+
+  // Real device vibration using Vibration API
+  public triggerVibration(pattern: number[] = [200, 100, 200]) {
+    try {
+      if (typeof window !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(pattern);
+      }
+    } catch {}
+  }
 }
 
 export const soundService = new SoundEngine();

@@ -14,6 +14,76 @@ export interface NotificationShapeConfig {
 export const getNotificationShapeConfig = (toast: ToastNotification): NotificationShapeConfig => {
   const t = (toast.animType || toast.title || toast.appName || toast.icon || '').toLowerCase();
 
+  // 0A. Live Incoming Phone Call (Pulsing green ring pill with caller info and answer/decline)
+  if (t.includes('incoming_call') || toast.animType === 'incoming_call') {
+    return {
+      type: 'incoming_call',
+      width: 480,
+      height: 70,
+      cornerRadius: 28,
+      glowColor: '#10b981',
+      border: '1.5px solid rgba(16, 185, 129, 0.75)',
+      bg: 'linear-gradient(135deg, rgba(6, 32, 20, 0.98) 0%, rgba(4, 16, 12, 0.98) 100%)',
+      eyeExpression: 'alert'
+    };
+  }
+
+  // 0B. Live Connected Phone Call
+  if (t.includes('call_connected') || toast.animType === 'call_connected') {
+    return {
+      type: 'call_connected',
+      width: 420,
+      height: 56,
+      cornerRadius: 26,
+      glowColor: '#38bdf8',
+      border: '1px solid rgba(56, 189, 248, 0.6)',
+      bg: 'rgba(8, 22, 38, 0.98)',
+      eyeExpression: 'happy'
+    };
+  }
+
+  // 0C. Missed Phone Call
+  if (t.includes('missed_call') || toast.animType === 'missed_call') {
+    return {
+      type: 'missed_call',
+      width: 360,
+      height: 48,
+      cornerRadius: 22,
+      glowColor: '#f43f5e',
+      border: '1px solid rgba(244, 63, 94, 0.7)',
+      bg: 'rgba(36, 10, 16, 0.98)',
+      eyeExpression: 'alert'
+    };
+  }
+
+  // 0D. WhatsApp Message
+  if (t.includes('whatsapp') || toast.animType === 'whatsapp') {
+    return {
+      type: 'whatsapp',
+      width: 380,
+      height: 50,
+      cornerRadius: 24,
+      glowColor: '#25D366',
+      border: '1.5px solid rgba(37, 211, 102, 0.65)',
+      bg: 'linear-gradient(135deg, rgba(4, 28, 16, 0.98) 0%, rgba(2, 16, 10, 0.98) 100%)',
+      eyeExpression: 'look-right'
+    };
+  }
+
+  // 0E. SMS Text Message
+  if (t.includes('sms') || toast.animType === 'sms') {
+    return {
+      type: 'sms',
+      width: 360,
+      height: 48,
+      cornerRadius: 23,
+      glowColor: '#0284c7',
+      border: '1.5px solid rgba(2, 132, 199, 0.65)',
+      bg: 'linear-gradient(135deg, rgba(4, 20, 36, 0.98) 0%, rgba(2, 12, 24, 0.98) 100%)',
+      eyeExpression: 'look-right'
+    };
+  }
+
   // 1. Download complete / Success / Merged
   if (
     t.includes('download_complete') ||

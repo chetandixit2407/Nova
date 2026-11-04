@@ -77,7 +77,12 @@ export interface AppNotification {
   priority: 'normal' | 'high' | 'urgent';
   actionLabel?: string;
   actionUrl?: string;
-  animType?: 'message' | 'download' | 'download_complete' | 'warning' | 'error' | 'battery_low' | 'music' | 'timer_complete' | 'system_update' | 'default';
+  animType?: 'message' | 'download' | 'download_complete' | 'warning' | 'error' | 'battery_low' | 'music' | 'timer_complete' | 'system_update' | 'incoming_call' | 'missed_call' | 'whatsapp' | 'sms' | 'call_connected' | 'default';
+  sender?: string;
+  callerNumber?: string;
+  callStatus?: 'ringing' | 'connected' | 'ended' | 'declined';
+  callDuration?: number;
+  vibrating?: boolean;
 }
 
 export interface ToastNotification {
@@ -90,7 +95,52 @@ export interface ToastNotification {
   priority?: 'normal' | 'high' | 'urgent';
   actionLabel?: string;
   duration?: number;
-  animType?: 'message' | 'download' | 'download_complete' | 'warning' | 'error' | 'battery_low' | 'music' | 'timer_complete' | 'system_update' | 'default';
+  animType?: 'message' | 'download' | 'download_complete' | 'warning' | 'error' | 'battery_low' | 'music' | 'timer_complete' | 'system_update' | 'incoming_call' | 'missed_call' | 'whatsapp' | 'sms' | 'call_connected' | 'default';
+  sender?: string;
+  callerNumber?: string;
+  callStatus?: 'ringing' | 'connected' | 'ended' | 'declined';
+  callDuration?: number;
+  vibrating?: boolean;
+}
+
+export interface PhoneDevice {
+  id: string;
+  name: string;
+  model: string;
+  platform: 'android' | 'ios' | 'windows' | 'generic';
+  connectionType: 'bluetooth' | 'wifi' | 'disconnected';
+  status: 'connected' | 'disconnected' | 'pairing' | 'scanning' | 'error';
+  batteryLevel: number;
+  isCharging: boolean;
+  signalStrength: number; // RSSI or percentage
+  pairedAt: number;
+  lastSyncAt: number;
+  ipAddress?: string;
+  bluetoothId?: string;
+}
+
+export interface ActiveCallState {
+  id: string;
+  callerName: string;
+  callerNumber: string;
+  appType: 'cellular' | 'whatsapp' | 'facetime' | 'teams';
+  status: 'ringing' | 'connected' | 'ended' | 'declined';
+  startedAt: number;
+  connectedAt?: number;
+  isMuted: boolean;
+}
+
+export interface PhoneSyncSettings {
+  syncCalls: boolean;
+  syncMissedCalls: boolean;
+  syncSms: boolean;
+  syncWhatsApp: boolean;
+  syncAppAlerts: boolean;
+  playRingtone: boolean;
+  playNotificationChime: boolean;
+  vibrationAlert: boolean;
+  autoExpandNotch: boolean;
+  collapseDelaySec: number;
 }
 
 export interface AITool {
@@ -350,6 +400,30 @@ export interface NovaDropTransferItem {
   peerDeviceName: string;
   blobUrl?: string;
 }
+
+// Personalized Greeting Types
+export type GreetingFontStyle = 'fluent' | 'mono' | 'serif' | 'cyber';
+export type GreetingColorTheme = 'cyan' | 'emerald' | 'amber' | 'violet' | 'rose' | 'white' | 'aurora';
+export type GreetingAnimationStyle = 'glow-shimmer' | 'fade-slide' | 'typewriter' | 'aurora-wave' | 'bounce-soft';
+export type TimeOfDayPeriod = 'morning' | 'afternoon' | 'evening' | 'night';
+
+export interface GreetingSettings {
+  enabled: boolean;
+  userName: string;
+  customGreetingMode: 'auto_time' | 'custom_prefix';
+  customPrefix: string;
+  fontStyle: GreetingFontStyle;
+  colorTheme: GreetingColorTheme;
+  animationStyle: GreetingAnimationStyle;
+  emojiIcon: string;
+  showOnStartup: boolean;
+  startupDurationSec: number;
+  showOnDashboardOpen: boolean;
+  showOnInactivityReturn: boolean;
+  inactivityThresholdSec: number;
+  wakeDurationSec: number;
+}
+
 
 
 

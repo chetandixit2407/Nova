@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Palette,
   Sliders,
@@ -12,14 +12,42 @@ import {
   EyeOff,
   Activity,
   ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  Smile,
+  Clock,
+  Type,
+  Sun,
+  Sunrise,
+  Sunset,
+  Moon,
+  Play,
+  Zap,
+  Check,
+  Edit2
 } from 'lucide-react';
 import { useNotch } from '../../context/NotchContext';
-import { NotchConfig, NotchTheme } from '../../types';
+import {
+  NotchConfig,
+  NotchTheme,
+  GreetingSettings,
+  GreetingFontStyle,
+  GreetingColorTheme,
+  GreetingAnimationStyle
+} from '../../types';
 import { MicrosoftStoreModal } from './MicrosoftStoreModal';
+import { greetingService, DEFAULT_GREETING_SETTINGS } from '../../services/greetingService';
 
 export const NotchSettingsTab: React.FC = () => {
-  const [showStoreModal, setShowStoreModal] = React.useState<boolean>(false);
+  const [showStoreModal, setShowStoreModal] = useState<boolean>(false);
+  const [greetingSettings, setGreetingSettings] = useState<GreetingSettings>(greetingService.getSettings());
+
+  useEffect(() => {
+    const unsub = greetingService.subscribe(() => {
+      setGreetingSettings(greetingService.getSettings());
+    });
+    return unsub;
+  }, []);
+
   const {
     config,
     updateConfig,
@@ -359,6 +387,413 @@ export const NotchSettingsTab: React.FC = () => {
             Standalone Notch Overlay
           </button>
         </div>
+      </div>
+
+      {/* ============================================================== */}
+      {/* PERSONALIZED GREETING & ANIMATION SETTINGS                     */}
+      {/* ============================================================== */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 space-y-4">
+        {/* Header & Toggle */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-400">
+              <Smile className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white flex items-center gap-2">
+                <span>Personalized Greeting & Name</span>
+                <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 text-[9px] font-mono font-bold">
+                  LOCAL TIME ACTIVE
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-400">
+                Dynamic time greetings (Morning, Afternoon, Evening, Night) with custom name and motion
+              </div>
+            </div>
+          </div>
+
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={greetingSettings.enabled}
+              onChange={(e) => greetingService.updateSettings({ enabled: e.target.checked })}
+              className="sr-only peer"
+            />
+            <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-sky-500" />
+          </label>
+        </div>
+
+        {greetingSettings.enabled && (
+          <div className="space-y-4 pt-1 border-t border-white/10">
+            {/* Live Interactive Preview Box */}
+            <div className="p-3 rounded-xl bg-black/50 border border-sky-400/30 relative overflow-hidden shadow-inner">
+              <div className="flex items-center justify-between text-[10px] font-mono text-slate-400 uppercase tracking-wider mb-2">
+                <span>Live Greeting Preview</span>
+                <span className="text-sky-400">
+                  {greetingService.getTimePeriodSalutation(greetingService.getTimeOfDayPeriod())} (Auto Detected)
+                </span>
+              </div>
+
+              <div className="py-2 text-center">
+                <div
+                  className={`text-base md:text-lg font-bold transition-all ${
+                    greetingSettings.fontStyle === 'mono'
+                      ? 'font-mono'
+                      : greetingSettings.fontStyle === 'serif'
+                      ? 'font-serif italic'
+                      : greetingSettings.fontStyle === 'cyber'
+                      ? 'font-mono uppercase tracking-wider font-extrabold'
+                      : 'font-sans'
+                  } ${
+                    greetingSettings.colorTheme === 'cyan'
+                      ? 'bg-gradient-to-r from-cyan-300 via-sky-200 to-blue-300 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(56,189,248,0.5)]'
+                      : greetingSettings.colorTheme === 'emerald'
+                      ? 'bg-gradient-to-r from-emerald-300 via-teal-200 to-green-300 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(16,185,129,0.5)]'
+                      : greetingSettings.colorTheme === 'amber'
+                      ? 'bg-gradient-to-r from-amber-300 via-yellow-200 to-orange-300 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]'
+                      : greetingSettings.colorTheme === 'violet'
+                      ? 'bg-gradient-to-r from-purple-300 via-violet-200 to-indigo-300 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]'
+                      : greetingSettings.colorTheme === 'rose'
+                      ? 'bg-gradient-to-r from-rose-300 via-pink-200 to-red-300 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(244,63,94,0.5)]'
+                      : greetingSettings.colorTheme === 'white'
+                      ? 'bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent drop-shadow-[0_0_10px_rgba(255,255,255,0.4)]'
+                      : 'bg-gradient-to-r from-teal-300 via-sky-300 via-indigo-300 to-pink-300 bg-clip-text text-transparent drop-shadow-[0_0_12px_rgba(56,189,248,0.5)]'
+                  }`}
+                >
+                  {greetingService.getGreetingText().main}
+                </div>
+                <div className="text-[11px] text-slate-400 font-mono mt-1">
+                  {greetingService.getGreetingText().subtitle}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-2 border-t border-white/5 mt-2">
+                <button
+                  onClick={() => greetingService.triggerTestGreeting()}
+                  className="px-2.5 py-1 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Play className="w-3 h-3 fill-slate-950" />
+                  <span>Test in Top Notch (5s)</span>
+                </button>
+
+                <button
+                  onClick={() => greetingService.resetSettings()}
+                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-xs transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Reset to default Virendra greeting"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset Default</span>
+                </button>
+              </div>
+            </div>
+
+            {/* User Name & Emoji Customization */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Display Name Input */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-200 flex items-center justify-between">
+                  <span>Custom Display Name</span>
+                  <button
+                    onClick={() => greetingService.updateSettings({ userName: 'Virendra' })}
+                    className="text-[10px] text-sky-400 hover:text-sky-300 transition-colors"
+                  >
+                    Set to "Virendra"
+                  </button>
+                </label>
+                <input
+                  type="text"
+                  value={greetingSettings.userName}
+                  onChange={(e) => greetingService.updateSettings({ userName: e.target.value })}
+                  placeholder="e.g. Virendra"
+                  maxLength={24}
+                  className="w-full px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs font-semibold text-white focus:outline-none focus:border-sky-400"
+                />
+              </div>
+
+              {/* Emoji Picker */}
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-200 block">
+                  Greeting Icon / Emoji
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {['👋', '✨', '☕', '🚀', '💻', '⚡', '🌙', '☀️', '👑', '🎯'].map((emoji) => {
+                    const isSelected = greetingSettings.emojiIcon === emoji;
+                    return (
+                      <button
+                        key={emoji}
+                        onClick={() => greetingService.updateSettings({ emojiIcon: emoji })}
+                        className={`w-7 h-7 rounded-lg text-sm flex items-center justify-center transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-sky-500/20 border-2 border-sky-400 scale-110 shadow-sm'
+                            : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                        }`}
+                      >
+                        {emoji}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Greeting Format Mode */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-200 block">
+                Greeting Salutation Mode
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => greetingService.updateSettings({ customGreetingMode: 'auto_time' })}
+                  className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                    greetingSettings.customGreetingMode === 'auto_time'
+                      ? 'bg-sky-500/20 border-sky-400 text-white'
+                      : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <div className="text-xs font-bold flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Auto Local Time</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">
+                    Good Morning (5-12) • Afternoon (12-17) • Evening (17-22) • Night (22-5)
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => greetingService.updateSettings({ customGreetingMode: 'custom_prefix' })}
+                  className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                    greetingSettings.customGreetingMode === 'custom_prefix'
+                      ? 'bg-sky-500/20 border-sky-400 text-white'
+                      : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <div className="text-xs font-bold flex items-center gap-1.5">
+                    <Edit2 className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Custom Prefix</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">
+                    Fixed custom wording like "Welcome back," or "Hello,"
+                  </div>
+                </button>
+              </div>
+
+              {greetingSettings.customGreetingMode === 'custom_prefix' && (
+                <div className="pt-1.5">
+                  <input
+                    type="text"
+                    value={greetingSettings.customPrefix}
+                    onChange={(e) => greetingService.updateSettings({ customPrefix: e.target.value })}
+                    placeholder="e.g. Welcome back,"
+                    maxLength={30}
+                    className="w-full px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white focus:outline-none focus:border-sky-400"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Typography / Font Style */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-200 block">
+                Typography Font Style
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: 'fluent', label: 'Windows Fluent', sample: 'Aa Modern' },
+                  { id: 'mono', label: 'JetBrains Mono', sample: 'Aa Monospace' },
+                  { id: 'serif', label: 'Elegant Serif', sample: 'Aa Editorial' },
+                  { id: 'cyber', label: 'Cyber Display', sample: 'AA BOLD' }
+                ].map((f) => {
+                  const isSelected = greetingSettings.fontStyle === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() =>
+                        greetingService.updateSettings({ fontStyle: f.id as GreetingFontStyle })
+                      }
+                      className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-sky-500/20 border-sky-400 text-white'
+                          : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">{f.label}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">{f.sample}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Color Accent & Glow */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-200 block">
+                Glowing Accent Color & Theme
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-1.5">
+                {[
+                  { id: 'cyan', label: 'Sky Cyan', color: '#38bdf8' },
+                  { id: 'emerald', label: 'Emerald', color: '#10b981' },
+                  { id: 'amber', label: 'Sunset Amber', color: '#f59e0b' },
+                  { id: 'violet', label: 'Violet Dusk', color: '#a855f7' },
+                  { id: 'rose', label: 'Rose Gold', color: '#f43f5e' },
+                  { id: 'white', label: 'Pure Frost', color: '#ffffff' },
+                  { id: 'aurora', label: 'Aurora Wave', color: '#38bdf8' }
+                ].map((c) => {
+                  const isSelected = greetingSettings.colorTheme === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() =>
+                        greetingService.updateSettings({ colorTheme: c.id as GreetingColorTheme })
+                      }
+                      className={`flex items-center gap-1.5 p-1.5 rounded-lg border text-xs transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-sky-500/20 border-sky-400 text-white font-bold'
+                          : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                        style={{ backgroundColor: c.color }}
+                      />
+                      <span className="truncate text-[10px]">{c.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Animation Style */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-200 block">
+                Motion & Animation Style
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {[
+                  { id: 'glow-shimmer', name: 'Glow & Shimmer', desc: 'Breathing neon glow' },
+                  { id: 'fade-slide', name: 'Fade & Slide Down', desc: 'Smooth acrylic drop' },
+                  { id: 'typewriter', name: 'Typewriter', desc: 'Dynamic letter typing' },
+                  { id: 'aurora-wave', name: 'Aurora Wave', desc: 'Multicolor cycle' },
+                  { id: 'bounce-soft', name: 'Gentle Bounce', desc: 'Dynamic Island spring' }
+                ].map((anim) => {
+                  const isSelected = greetingSettings.animationStyle === anim.id;
+                  return (
+                    <button
+                      key={anim.id}
+                      onClick={() =>
+                        greetingService.updateSettings({
+                          animationStyle: anim.id as GreetingAnimationStyle
+                        })
+                      }
+                      className={`p-2 rounded-lg border text-left transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-sky-500/20 border-sky-400 text-white'
+                          : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">{anim.name}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">{anim.desc}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Triggers & Display Conditions */}
+            <div className="space-y-3 pt-2 border-t border-white/10">
+              <label className="text-xs font-semibold text-slate-200 block">
+                Greeting Triggers & Behaviors
+              </label>
+
+              {/* 1. Show on Startup */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-black/30 border border-white/5">
+                <div>
+                  <div className="text-xs font-semibold text-white">Show when Windows starts</div>
+                  <div className="text-[10px] text-slate-400">
+                    Displays animated greeting pill in top notch upon application launch ({greetingSettings.startupDurationSec}s)
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="3"
+                    max="10"
+                    step="1"
+                    value={greetingSettings.startupDurationSec}
+                    onChange={(e) =>
+                      greetingService.updateSettings({ startupDurationSec: Number(e.target.value) })
+                    }
+                    className="w-16 accent-sky-400 h-1"
+                    title={`${greetingSettings.startupDurationSec} seconds`}
+                  />
+                  <input
+                    type="checkbox"
+                    checked={greetingSettings.showOnStartup}
+                    onChange={(e) =>
+                      greetingService.updateSettings({ showOnStartup: e.target.checked })
+                    }
+                    className="accent-sky-500 w-4 h-4 cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* 2. Show on Dashboard Open */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-black/30 border border-white/5">
+                <div>
+                  <div className="text-xs font-semibold text-white">Show when Dashboard opens</div>
+                  <div className="text-[10px] text-slate-400">
+                    Header banner at top of expanded notch cards with quick inline name edit
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={greetingSettings.showOnDashboardOpen}
+                  onChange={(e) =>
+                    greetingService.updateSettings({ showOnDashboardOpen: e.target.checked })
+                  }
+                  className="accent-sky-500 w-4 h-4 cursor-pointer"
+                />
+              </div>
+
+              {/* 3. Show on Inactivity Return */}
+              <div className="flex items-center justify-between p-2 rounded-lg bg-black/30 border border-white/5">
+                <div>
+                  <div className="text-xs font-semibold text-white">Show on return after inactivity</div>
+                  <div className="text-[10px] text-slate-400">
+                    Welcomes user back when returning to computer (after {greetingSettings.inactivityThresholdSec}s idle)
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min="15"
+                    max="120"
+                    step="15"
+                    value={greetingSettings.inactivityThresholdSec}
+                    onChange={(e) =>
+                      greetingService.updateSettings({
+                        inactivityThresholdSec: Number(e.target.value)
+                      })
+                    }
+                    className="w-16 accent-sky-400 h-1"
+                    title={`${greetingSettings.inactivityThresholdSec} seconds idle threshold`}
+                  />
+                  <input
+                    type="checkbox"
+                    checked={greetingSettings.showOnInactivityReturn}
+                    onChange={(e) =>
+                      greetingService.updateSettings({
+                        showOnInactivityReturn: e.target.checked
+                      })
+                    }
+                    className="accent-sky-500 w-4 h-4 cursor-pointer"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Microsoft Store MSIX Packaging & WACK Certification */}

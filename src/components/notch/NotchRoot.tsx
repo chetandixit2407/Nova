@@ -4,6 +4,7 @@ import { useNotch } from '../../context/NotchContext';
 import { NotchCompactPill } from './NotchCompactPill';
 import { NotchExpandedDashboard } from './NotchExpandedDashboard';
 import { NotchNotificationPill } from './NotchNotificationPill';
+import { IncomingCallNotchPill } from './IncomingCallNotchPill';
 import { InvisibilityCloakOverlay } from './InvisibilityCloakOverlay';
 import { FullscreenMusicModal } from './FullscreenMusicModal';
 import { DetachedNotchWidget } from './DetachedNotchWidget';
@@ -12,6 +13,10 @@ import { getNotificationShapeConfig } from '../../utils/notchShapeHelper';
 import { systemService } from '../../services/systemService';
 import { audioEngine } from '../../services/audioEngine';
 import { windowActivityService, DynamicActivity, WindowsApp } from '../../services/windowActivityService';
+import { phoneSyncService } from '../../services/phoneSyncService';
+import { greetingService, ActiveGreetingState } from '../../services/greetingService';
+import { PersonalizedGreetingBanner } from './PersonalizedGreetingBanner';
+import { ActiveCallState } from '../../types';
 import { FileUp, Sparkles, Dock } from 'lucide-react';
 
 export const NotchRoot: React.FC = () => {
@@ -36,7 +41,8 @@ export const NotchRoot: React.FC = () => {
     toggleDetached,
     isFullscreenMusicOpen,
     setIsFullscreenMusicOpen,
-    addDropShelfFiles
+    addDropShelfFiles,
+    eyesOnlyMode
   } = useNotch();
 
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
@@ -44,6 +50,24 @@ export const NotchRoot: React.FC = () => {
   const [activities, setActivities] = useState<DynamicActivity[]>([]);
   const [foregroundApp, setForegroundApp] = useState<WindowsApp | null>(null);
   const [launchStage, setLaunchStage] = useState<'pop' | 'compact' | 'expanded' | null>(null);
+  const [activeCall, setActiveCall] = useState<ActiveCallState | null>(phoneSyncService.getActiveCall());
+  const [activeGreeting, setActiveGreeting] = useState<ActiveGreetingState>(greetingService.getActiveGreeting());
+
+  // Phone Call & Notification sync subscription
+  useEffect(() => {
+    const unsub = phoneSyncService.subscribe(() => {
+      setActiveCall(phoneSyncService.getActiveCall());
+    });
+    return unsub;
+  }, []);
+
+  // Personalized Greeting subscription
+  useEffect(() => {
+    const unsub = greetingService.subscribe(() => {
+      setActiveGreeting(greetingService.getActiveGreeting());
+    });
+    return unsub;
+  }, []);
 
   // Dynamic Island content measurement and OS reduced-motion sensitivity
   const expandedContentRef = useRef<HTMLDivElement>(null);
@@ -155,23 +179,31 @@ export const NotchRoot: React.FC = () => {
   // Active notification detection for dynamic notch morphing
   const activeToast = !isExpanded && toasts.length > 0 ? toasts[0] : null;
   const shapeConfig = activeToast ? getNotificationShapeConfig(activeToast) : null;
+  const isGreetingActive = !isExpanded && !activeCall && !activeToast && activeGreeting.isActive;
 
   // Collapsed size target: approximately 320–360px wide and 38px high
   const baseCompactWidth = Math.max(300, Math.min(380, config.compactWidth || 340));
   const baseCompactHeight = Math.max(36, Math.min(42, config.compactHeight || 38));
   const responsiveCompactWidth = Math.min(baseCompactWidth, screenBounds.width - 24);
 
-  // Expanded size target: approximately 600–640px wide and 320–350px high
-  const maxAllowedWidth = Math.min(620, screenBounds.width - 24);
-  const maxAllowedHeight = Math.min(
-    Math.max(315, contentHeight || 335),
-    Math.min(375, screenBounds.height - 24)
-  );
+  // Compact size matching reference screenshot: sleek, centered, responsive
+  const maxAllowedWidth = Math.min(560, screenBounds.width - 24);
+  const maxAllowedHeight = eyesOnlyMode
+    ? 220
+    : Math.min(335, screenBounds.height - 24);
 
   const targetWidth = isExpanded
     ? maxAllowedWidth
+    : activeCall
+    ? activeCall.status === 'ringing'
+      ? Math.min(480, screenBounds.width - 24)
+      : activeCall.status === 'connected'
+      ? Math.min(420, screenBounds.width - 24)
+      : Math.min(360, screenBounds.width - 24)
     : shapeConfig
     ? Math.min(shapeConfig.width, screenBounds.width - 24)
+    : isGreetingActive
+    ? Math.min(430, screenBounds.width - 24)
     : launchStage === 'pop'
     ? 68
     : launchStage === 'compact'
@@ -188,8 +220,16 @@ export const NotchRoot: React.FC = () => {
 
   const targetHeight = isExpanded
     ? maxAllowedHeight
+    : activeCall
+    ? activeCall.status === 'ringing'
+      ? 68
+      : activeCall.status === 'connected'
+      ? 54
+      : 48
     : shapeConfig
     ? shapeConfig.height
+    : isGreetingActive
+    ? 44
     : launchStage === 'pop'
     ? 40
     : launchStage === 'compact'
@@ -206,8 +246,12 @@ export const NotchRoot: React.FC = () => {
 
   const targetCornerRadius = isExpanded
     ? 24
+    : activeCall
+    ? 26
     : shapeConfig
     ? shapeConfig.cornerRadius
+    : isGreetingActive
+    ? 22
     : launchStage === 'pop'
     ? 22
     : launchStage === 'expanded'
@@ -216,6 +260,31 @@ export const NotchRoot: React.FC = () => {
 
   // Theme styling (Including all 5 Pro Appearance Themes)
   const getThemeStyles = () => {
+    if (activeCall) {
+      if (activeCall.status === 'ringing') {
+        return {
+          background: 'radial-gradient(ellipse at top, rgba(6, 40, 28, 0.96) 0%, rgba(2, 16, 12, 0.98) 100%)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(16, 185, 129, 0.65)',
+          color: '#ecfdf5'
+        };
+      } else if (activeCall.status === 'connected') {
+        return {
+          background: 'radial-gradient(ellipse at top, rgba(8, 30, 48, 0.96) 0%, rgba(4, 14, 24, 0.98) 100%)',
+          backdropFilter: 'blur(30px)',
+          border: '1px solid rgba(56, 189, 248, 0.6)',
+          color: '#f0f9ff'
+        };
+      } else {
+        return {
+          background: 'rgba(30, 10, 16, 0.95)',
+          backdropFilter: 'blur(28px)',
+          border: '1px solid rgba(244, 63, 94, 0.55)',
+          color: '#fff1f2'
+        };
+      }
+    }
+
     if (shapeConfig) {
       return {
         background: shapeConfig.bg,
@@ -224,6 +293,16 @@ export const NotchRoot: React.FC = () => {
         color: '#ffffff'
       };
     }
+
+    if (isGreetingActive) {
+      return {
+        background: 'radial-gradient(ellipse at top, rgba(12, 28, 48, 0.96) 0%, rgba(5, 12, 24, 0.98) 100%)',
+        backdropFilter: 'blur(30px)',
+        border: '1px solid rgba(56, 189, 248, 0.5)',
+        color: '#f0f9ff'
+      };
+    }
+
 
     switch (config.theme) {
       // 1. Pro: Liquid Titanium
@@ -318,7 +397,11 @@ export const NotchRoot: React.FC = () => {
   };
 
   // Glow shadow calculation
-  const glowShadow = isNotchIngesting
+  const glowShadow = activeCall
+    ? activeCall.status === 'ringing'
+      ? '0 0 0 1.5px #10b981, 0 16px 48px -4px rgba(0, 0, 0, 0.9), 0 0 36px 4px rgba(16, 185, 129, 0.75)'
+      : '0 0 0 1px #38bdf8, 0 16px 48px -4px rgba(0, 0, 0, 0.9), 0 0 28px -2px rgba(56, 189, 248, 0.65)'
+    : isNotchIngesting
     ? '0 0 0 1.5px #38bdf8, 0 16px 48px -4px rgba(0, 0, 0, 0.9), 0 0 36px 4px rgba(56, 189, 248, 0.85)'
     : shapeConfig
     ? `0 0 0 1px ${shapeConfig.glowColor}55, 0 16px 44px -4px rgba(0, 0, 0, 0.9), 0 0 28px -2px ${shapeConfig.glowColor}77`
@@ -526,9 +609,20 @@ export const NotchRoot: React.FC = () => {
                     animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
                     exit={{ opacity: 0, y: -6, filter: 'blur(3px)', transition: { duration: 0.12 } }}
                     transition={{ duration: 0.22, delay: 0.03, ease: [0.16, 1, 0.3, 1] }}
-                    className="w-full flex flex-col"
+                    className="w-full h-full flex flex-col overflow-hidden"
                   >
                     <NotchExpandedDashboard />
+                  </motion.div>
+                ) : activeCall ? (
+                  <motion.div
+                    key={`call-${activeCall.id}-${activeCall.status}`}
+                    initial={{ opacity: 0, scale: 0.94 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.12 } }}
+                    transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                    className="w-full h-full flex items-center"
+                  >
+                    <IncomingCallNotchPill call={activeCall} onOpenNotch={expandNotch} />
                   </motion.div>
                 ) : activeToast && shapeConfig ? (
                   <motion.div
@@ -545,6 +639,21 @@ export const NotchRoot: React.FC = () => {
                       totalStacked={toasts.length}
                       onDismiss={dismissToast}
                       onOpenNotch={handleOpenNotificationNotch}
+                    />
+                  </motion.div>
+                ) : isGreetingActive ? (
+                  <motion.div
+                    key={`greeting-${activeGreeting.startedAt}`}
+                    initial={{ opacity: 0, scale: 0.94 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.94, transition: { duration: 0.12 } }}
+                    transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                    className="w-full h-full flex items-center"
+                  >
+                    <PersonalizedGreetingBanner
+                      mode="compact"
+                      onOpenDashboard={expandNotch}
+                      onDismiss={() => greetingService.dismissGreeting()}
                     />
                   </motion.div>
                 ) : (

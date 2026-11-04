@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Music2,
@@ -20,6 +20,7 @@ import {
   Headphones,
   Check,
   Volume2,
+  VolumeX,
   Sun,
   Bluetooth,
   Scissors,
@@ -38,6 +39,7 @@ import {
   Layers,
   Share2,
   Shield,
+  Eye,
   EyeOff,
   Dock,
   AlertCircle,
@@ -45,7 +47,21 @@ import {
   ArrowDown,
   ChevronUp,
   RotateCcw,
-  Maximize2
+  Maximize2,
+  Terminal,
+  Code,
+  Globe,
+  Folder,
+  Download,
+  Copy,
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+  Radio,
+  FileUp,
+  CheckCircle2,
+  Smartphone,
+  PhoneCall
 } from 'lucide-react';
 import { useNotch } from '../../context/NotchContext';
 import { audioEngine, PLAYLIST } from '../../services/audioEngine';
@@ -54,12 +70,14 @@ import { lyricsService } from '../../services/lyricsService';
 import { audioDeviceService } from '../../services/audioDeviceService';
 import { windowActivityService, DynamicActivity } from '../../services/windowActivityService';
 import { soundService } from '../../services/soundService';
-import { AppIconBadge } from './AppIconBadge';
+import { phoneSyncService } from '../../services/phoneSyncService';
+import { VayllEye } from './VayllEye';
 import { GlassCalculator } from './GlassCalculator';
 import { QuickAppsBarModal } from './QuickAppsBarModal';
 import { AIAgentProModal } from './AIAgentProModal';
 import { MicrosoftStoreModal } from './MicrosoftStoreModal';
 import { VolumeMixerModal } from './VolumeMixerModal';
+import { PhoneSyncModal } from './PhoneSyncModal';
 import { ClipboardView } from './views/ClipboardView';
 import { DropShelfView } from './views/DropShelfView';
 import { TimeAnalyticsView } from './views/TimeAnalyticsView';
@@ -71,6 +89,7 @@ import { NotchSettingsTab } from './NotchSettingsTab';
 import { NotchNotificationsTab } from './NotchNotificationsTab';
 import { NotchAIHubTab } from './NotchAIHubTab';
 import { NotchActivitiesTab } from './NotchActivitiesTab';
+import { PersonalizedGreetingBanner } from './PersonalizedGreetingBanner';
 
 type SubViewType =
   | null
@@ -94,27 +113,28 @@ export const NotchExpandedDashboard: React.FC = () => {
     systemStatus,
     weather,
     notifications,
-    dismissNotification,
-    clearAllNotifications,
     pomodoroSeconds,
     isPomodoroRunning,
     startPomodoro,
     pausePomodoro,
-    resetPomodoro,
     tasks,
     pauseTask,
     resumeTask,
     cancelTask,
     showToast,
     config,
-    applyPreset,
     copyText,
     setIsFullscreenMusicOpen,
     toggleInvisibilityCloak,
-    toggleDetached
+    toggleDetached,
+    clipboardHistory,
+    dropShelfFiles,
+    eyesOnlyMode,
+    toggleEyesOnlyMode,
+    setEyesOnlyMode
   } = useNotch();
 
-  // Active SubView (null means default 2-column floating dashboard)
+  // Active SubView (null means default compact 2-column floating dashboard)
   const [activeSubView, setActiveSubView] = useState<SubViewType>(null);
 
   // Modals
@@ -126,22 +146,44 @@ export const NotchExpandedDashboard: React.FC = () => {
   const [isLyricsOpen, setIsLyricsOpen] = useState<boolean>(false);
   const [isPlaylistMenuOpen, setIsPlaylistMenuOpen] = useState<boolean>(false);
   const [isAudioOutputMenuOpen, setIsAudioOutputMenuOpen] = useState<boolean>(false);
+  const [isPhoneSyncOpen, setIsPhoneSyncOpen] = useState<boolean>(false);
+  const [phoneDevice, setPhoneDevice] = useState(phoneSyncService.getDevice());
+
+  useEffect(() => {
+    const unsub = phoneSyncService.subscribe(() => {
+      setPhoneDevice(phoneSyncService.getDevice());
+    });
+    return unsub;
+  }, []);
 
   // Media Player State
   const [isPlaying, setIsPlaying] = useState<boolean>(audioEngine.getIsPlaying());
   const [currentTrack, setCurrentTrack] = useState(audioEngine.getCurrentTrack());
   const [currentTime, setCurrentTime] = useState(audioEngine.getCurrentTime());
-  const [frequencies, setFrequencies] = useState<Uint8Array>(new Uint8Array(4));
   const [audioDevices, setAudioDevices] = useState(audioDeviceService.getDevices());
   const [activeDevice, setActiveDevice] = useState(audioDeviceService.getActiveDevice());
 
+  // Master Volume & Luminance Slider States
+  const [masterVolume, setMasterVolume] = useState<number>(55);
+  const [displayBrightness, setDisplayBrightness] = useState<number>(90);
+
   // Live Telemetry
-  const [cpuUsage, setCpuUsage] = useState<number>(59);
-  const [ramUsage, setRamUsage] = useState<number>(70);
-  const [downSpeed, setDownSpeed] = useState<string>('1.5 KB/s');
-  const [upSpeed, setUpSpeed] = useState<string>('260 B/s');
+  const [cpuUsage, setCpuUsage] = useState<number>(62);
+  const [ramUsage, setRamUsage] = useState<number>(72);
+  const [downSpeed, setDownSpeed] = useState<string>('782 B/s');
+  const [upSpeed, setUpSpeed] = useState<string>('0 B/s');
   const [bluetoothActive, setBluetoothActive] = useState<boolean>(true);
-  const [activities, setActivities] = useState<DynamicActivity[]>([]);
+  const [copiedRecentId, setCopiedRecentId] = useState<string | null>(null);
+
+  // Scroll Indicators & Drag Scrolling State
+  const dashboardScrollRef = useRef<HTMLDivElement>(null);
+  const subViewScrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollDown, setCanScrollDown] = useState<boolean>(false);
+  const [canScrollUp, setCanScrollUp] = useState<boolean>(false);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const dragStartYRef = useRef<number>(0);
+  const dragStartScrollTopRef = useRef<number>(0);
+  const isDraggingActiveRef = useRef<boolean>(false);
 
   // Subscribe to Audio Engine
   useEffect(() => {
@@ -153,36 +195,11 @@ export const NotchExpandedDashboard: React.FC = () => {
     return unsubAudio;
   }, []);
 
-  // Equalizer animation
-  useEffect(() => {
-    let animId: number;
-    const updateFreqs = () => {
-      if (isPlaying) {
-        const full = audioEngine.getFrequencies();
-        const mini = new Uint8Array([full[2] || 0, full[5] || 0, full[8] || 0, full[12] || 0]);
-        setFrequencies(mini);
-      } else {
-        setFrequencies(new Uint8Array(4));
-      }
-      animId = requestAnimationFrame(updateFreqs);
-    };
-    animId = requestAnimationFrame(updateFreqs);
-    return () => cancelAnimationFrame(animId);
-  }, [isPlaying]);
-
-  // Subscribe to Window Activities
-  useEffect(() => {
-    const unsub = windowActivityService.subscribeActivities((acts) => {
-      setActivities(acts);
-    });
-    return unsub;
-  }, []);
-
   // Telemetry real jitter
   useEffect(() => {
     const timer = setInterval(() => {
       setCpuUsage((prev) => {
-        const base = isPlaying ? 61 : 57;
+        const base = isPlaying ? 64 : 61;
         const delta = Math.floor((Math.random() - 0.48) * 4);
         return Math.min(88, Math.max(38, base + delta));
       });
@@ -190,11 +207,92 @@ export const NotchExpandedDashboard: React.FC = () => {
         const delta = Math.floor((Math.random() - 0.5) * 2);
         return Math.min(84, Math.max(68, prev + delta));
       });
-      setDownSpeed(`${(1.2 + Math.random() * 0.8).toFixed(1)} KB/s`);
-      setUpSpeed(`${Math.floor(220 + Math.random() * 90)} B/s`);
-    }, 2400);
+      setDownSpeed(`${Math.floor(740 + Math.random() * 80)} B/s`);
+      setUpSpeed(`${Math.floor(Math.random() * 40)} B/s`);
+    }, 2800);
     return () => clearInterval(timer);
   }, [isPlaying]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.dropdown-container')) {
+        setIsPlaylistMenuOpen(false);
+        setIsAudioOutputMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Check scroll position for scroll indicators
+  const checkScrollState = useCallback(() => {
+    const el = dashboardScrollRef.current;
+    if (!el) return;
+    const hasMoreBelow = el.scrollHeight - el.scrollTop - el.clientHeight > 14;
+    const hasMoreAbove = el.scrollTop > 14;
+    setCanScrollDown(hasMoreBelow);
+    setCanScrollUp(hasMoreAbove);
+  }, []);
+
+  useEffect(() => {
+    const el = dashboardScrollRef.current;
+    if (!el) return;
+    checkScrollState();
+    const ro = new ResizeObserver(() => checkScrollState());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [checkScrollState, activeSubView, tasks, isLyricsOpen, eyesOnlyMode]);
+
+  // Drag-to-scroll implementation
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return; // Only left-click
+    const target = e.target as HTMLElement;
+    // Don't drag when interacting with controls
+    if (
+      target.closest('button') ||
+      target.closest('input') ||
+      target.closest('select') ||
+      target.closest('textarea') ||
+      target.closest('a') ||
+      target.closest('[role="button"]') ||
+      target.closest('[role="slider"]') ||
+      target.closest('.interactive-control')
+    ) {
+      return;
+    }
+
+    const currentScrollRef = activeSubView !== null ? subViewScrollRef.current : dashboardScrollRef.current;
+    if (!currentScrollRef) return;
+
+    isDraggingActiveRef.current = true;
+    dragStartYRef.current = e.pageY;
+    dragStartScrollTopRef.current = currentScrollRef.scrollTop;
+    setIsDragging(true);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDraggingActiveRef.current) return;
+    const currentScrollRef = activeSubView !== null ? subViewScrollRef.current : dashboardScrollRef.current;
+    if (!currentScrollRef) return;
+
+    const deltaY = e.pageY - dragStartYRef.current;
+    currentScrollRef.scrollTop = dragStartScrollTopRef.current - deltaY;
+    checkScrollState();
+  };
+
+  const handleMouseUp = () => {
+    isDraggingActiveRef.current = false;
+    setIsDragging(false);
+  };
+
+  const scrollDashboardDown = () => {
+    if (dashboardScrollRef.current) {
+      dashboardScrollRef.current.scrollBy({ top: 180, behavior: 'smooth' });
+      soundService.playTick();
+    }
+  };
 
   const formatSecs = (sec: number) => {
     const m = Math.floor(sec / 60);
@@ -218,99 +316,96 @@ export const NotchExpandedDashboard: React.FC = () => {
     }, 300);
   };
 
+  const handleVolumeChange = (newVal: number) => {
+    setMasterVolume(newVal);
+    audioEngine.setVolume(newVal / 100);
+  };
+
+  const handleBrightnessChange = (newVal: number) => {
+    setDisplayBrightness(newVal);
+    const root = document.getElementById('desktop-viewport-container');
+    if (root) {
+      root.style.filter = `brightness(${newVal}%)`;
+    }
+  };
+
   // Synced lyrics line
   const trackLyrics = lyricsService.getLyricsForTrack(currentTrack.id);
   const activeLineIdx = lyricsService.getCurrentLineIndex(trackLyrics, currentTime);
-  const activeLyricsLine =
-    trackLyrics[activeLineIdx]?.text || '• Ambient electronic synthesizer begins •';
 
-  const unreadNotifs = notifications.filter((n) => !n.isRead);
   const activeTasksList = tasks.filter((t) => t.status === 'running');
-  const primaryTask =
-    activeTasksList[0] || {
-      id: 'task-vscode-dl',
-      title: 'Downloading VS Code v1.95 (x64)',
-      type: 'download',
-      progress: 67,
-      speed: '12.4 MB/s',
-      detail: '48.2 MB of 114.7 MB · 6s remaining',
-      status: 'running',
-      icon: 'Download',
-      canPause: true,
-      canCancel: true
-    };
+
+  // Quick launch dock items
+  const quickDockApps = [
+    { id: 'vscode', name: 'VS Code', icon: Code, color: '#007ACC', exe: 'code.exe' },
+    { id: 'terminal', name: 'Terminal', icon: Terminal, color: '#107C41', exe: 'wt.exe' },
+    { id: 'browser', name: 'Edge', icon: Globe, color: '#0078D7', exe: 'msedge.exe' },
+    { id: 'spotify', name: 'Spotify', icon: Music2, color: '#1DB954', exe: 'spotify.exe' },
+    { id: 'explorer', name: 'Files', icon: Folder, color: '#FFB900', exe: 'explorer.exe' },
+    { id: 'settings', name: 'Settings', icon: Sliders, color: '#7C3AED', exe: 'ms-settings:' },
+    { id: 'calc', name: 'Calculator', icon: CalculatorIcon, color: '#38BDF8', exe: 'calc.exe' },
+    { id: 'snipping', name: 'Snip', icon: Scissors, color: '#EC4899', exe: 'snippingtool.exe' }
+  ];
+
+  // Battery circular ring matching reference screenshot: "74% ⭕"
+  const batteryPct = systemStatus?.batteryLevel !== undefined ? systemStatus.batteryLevel : 74;
+  const ringRadius = 5.5;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const ringOffset = ringCircumference - (batteryPct / 100) * ringCircumference;
+
+  // =========================================================================
+  // 4. EYES-ONLY MODE: Show ONLY the eye icons. Hide all other elements!
+  // =========================================================================
+  if (eyesOnlyMode) {
+    return (
+      <div
+        onClick={() => toggleEyesOnlyMode()}
+        className="w-full h-full flex flex-col items-center justify-center cursor-pointer select-none relative group bg-transparent"
+        title="Eyes-Only Mode Active • Click anywhere to reveal full dashboard"
+      >
+        <div className="relative">
+          <VayllEye size="lg" interactive={true} />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="w-full text-slate-100 select-none flex flex-col justify-between overflow-hidden relative">
+    <div className="w-full h-full text-slate-100 select-none flex flex-col overflow-hidden relative font-sans">
       {/* ============================================================== */}
-      {/* 1. TOP UTILITY HEADER BAR                                      */}
+      {/* 1. TOP UTILITY HEADER BAR (Fixed at the top, matching reference)*/}
       {/* ============================================================== */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/[0.08] bg-black/40 backdrop-blur-md">
-        {/* Left Quick Navigation Icons */}
-        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-0.5">
-          {/* Quick Apps */}
+      <div className="shrink-0 z-20 flex items-center justify-between px-3 py-1.5 border-b border-white/[0.06] bg-black/60 backdrop-blur-xl select-none sticky top-0">
+        {/* Left Side: Enclosed Capsule Pill with Quick Icons */}
+        <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-[#12161f] border border-white/10 shadow-inner">
+          {/* 1. Quick Apps button (highlighted square pill) */}
           <button
             onClick={() => setIsQuickAppsOpen(true)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-            title="Quick Apps (App Launcher)"
+            className="p-1 rounded-md bg-white/10 text-white hover:bg-white/20 transition-all cursor-pointer"
+            title="Quick Apps (Launcher)"
           >
             <LayoutGrid className="w-3.5 h-3.5" />
           </button>
 
-          {/* Window / Activities Manager */}
-          <button
-            onClick={() => setActiveSubView('activities')}
-            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-              activeSubView === 'activities'
-                ? 'bg-sky-500/25 text-sky-300'
-                : 'text-slate-400 hover:text-white hover:bg-white/10'
-            }`}
-            title="Window & Task Activities"
-          >
-            <Layers className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Drop Shelf */}
-          <button
-            onClick={() => setActiveSubView('shelf')}
-            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-              activeSubView === 'shelf'
-                ? 'bg-indigo-500/25 text-indigo-300'
-                : 'text-slate-400 hover:text-white hover:bg-white/10'
-            }`}
-            title="Drop Shelf (File Stash)"
-          >
-            <FolderUp className="w-3.5 h-3.5" />
-          </button>
-
-          {/* NOVA Drop Wireless Transfer */}
-          <button
-            onClick={() => setActiveSubView('shelf')}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-            title="NOVA Drop (PC to Mobile Wireless Transfer)"
-          >
-            <Share2 className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Music Studio Modal */}
+          {/* 2. Music Player */}
           <button
             onClick={() => setIsFullscreenMusicOpen(true)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-            title="Fullscreen Immersive Music Studio"
+            className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            title="Music Player"
           >
             <Music2 className="w-3.5 h-3.5" />
           </button>
 
-          {/* Volume Mixer Modal */}
+          {/* 3. Audio & Sliders Mixer */}
           <button
             onClick={() => setIsVolumeMixerOpen(true)}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-            title="Audio Volume & Device Mixer"
+            className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            title="Volume Mixer"
           >
             <Sliders className="w-3.5 h-3.5" />
           </button>
 
-          {/* Bluetooth Toggle */}
+          {/* 4. Bluetooth */}
           <button
             onClick={() => {
               const next = !bluetoothActive;
@@ -321,135 +416,176 @@ export const NotchExpandedDashboard: React.FC = () => {
                 title: next ? 'Bluetooth Connected' : 'Bluetooth Disabled',
                 message: next ? 'Ready for paired peripherals' : 'Radio powered off',
                 icon: 'Bluetooth',
-                duration: 2000
+                duration: 1800
               });
             }}
-            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-              bluetoothActive ? 'text-indigo-400 hover:bg-indigo-500/15' : 'text-slate-500 hover:text-slate-300'
+            className={`p-1 transition-colors cursor-pointer ${
+              bluetoothActive ? 'text-indigo-400 hover:text-indigo-300' : 'text-slate-500'
             }`}
             title={bluetoothActive ? 'Bluetooth is ON' : 'Bluetooth is OFF'}
           >
             <Bluetooth className="w-3.5 h-3.5" />
           </button>
 
-          {/* Invisibility Cloak Overlay */}
+          {/* 5. Smartphone Link & Live Notifications */}
           <button
-            onClick={toggleInvisibilityCloak}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-            title="Invisibility Cloak (Screen Blur & Privacy Shield)"
-          >
-            <EyeOff className="w-3.5 h-3.5" />
-          </button>
-
-          {/* Detached Widget Float */}
-          <button
-            onClick={toggleDetached}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-            title="Detach Notch into Floating Widget"
-          >
-            <Dock className="w-3.5 h-3.5" />
-          </button>
-
-          {/* NOVA Pet Companion */}
-          <button
-            onClick={() => setActiveSubView('pet')}
-            className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-              activeSubView === 'pet'
-                ? 'bg-cyan-500/25 text-cyan-300'
-                : 'text-slate-400 hover:text-white hover:bg-white/10'
+            onClick={() => setIsPhoneSyncOpen(true)}
+            className={`p-1 relative transition-colors cursor-pointer ${
+              phoneDevice?.status === 'connected' ? 'text-sky-400 hover:text-sky-300' : 'text-slate-400 hover:text-white'
             }`}
-            title="NOVA Pet Companion & Iris Aura"
+            title={`Smart Phone Sync: ${
+              phoneDevice && phoneDevice.status === 'connected'
+                ? `${phoneDevice.name} (${phoneDevice.batteryLevel}%) • Live Mirror Active`
+                : 'Connect Phone'
+            }`}
           >
-            <Smile className="w-3.5 h-3.5" />
+            <Smartphone className="w-3.5 h-3.5" />
+            {phoneDevice?.status === 'connected' && (
+              <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_4px_#34d399] animate-pulse" />
+            )}
           </button>
 
-          {/* PRO Badge */}
+          {/* 6. Clipboard */}
           <button
-            onClick={() => setIsProModalOpen(true)}
-            className="px-2 py-0.5 rounded-md bg-gradient-to-r from-sky-500/20 to-indigo-500/20 hover:from-sky-500/30 hover:to-indigo-500/30 border border-sky-400/40 text-[10px] font-mono font-bold text-sky-300 flex items-center gap-1 transition-all cursor-pointer shadow-sm"
-            title="AI Agent Pro Features & Approvals"
+            onClick={() => setActiveSubView('clipboard')}
+            className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            title="Clipboard Pro"
           >
-            <Sparkles className="w-2.5 h-2.5 text-sky-400" />
-            <span>PRO</span>
+            <Clipboard className="w-3.5 h-3.5" />
           </button>
 
-          {/* MS STORE Badge */}
+          {/* 6. Focus Timer */}
           <button
-            onClick={() => setIsStoreModalOpen(true)}
-            className="px-2 py-0.5 rounded-md bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/40 text-[10px] font-mono font-bold text-emerald-300 flex items-center gap-1 transition-all cursor-pointer shadow-sm"
-            title="Microsoft Store Compliance & MSIX Generator"
+            onClick={() => setActiveSubView('time')}
+            className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            title="Focus & Pomodoro Timer"
           >
-            <Shield className="w-2.5 h-2.5 text-emerald-400" />
-            <span>MS STORE</span>
+            <Coffee className="w-3.5 h-3.5" />
+          </button>
+
+          {/* 7. Weather */}
+          <button
+            onClick={() => {
+              showToast({
+                appName: 'Weather',
+                title: '28°C • Clear Skies',
+                message: 'Humidity: 48% • Wind: 8 km/h NW',
+                icon: 'Sun',
+                duration: 2500
+              });
+            }}
+            className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            title="Weather Forecast"
+          >
+            <Sun className="w-3.5 h-3.5 text-amber-400" />
+          </button>
+
+          {/* 8. Activities / Pulse */}
+          <button
+            onClick={() => setActiveSubView('activities')}
+            className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            title="System Activities"
+          >
+            <Activity className="w-3.5 h-3.5" />
+          </button>
+
+          {/* 9. Eyes-Only Mode Toggle */}
+          <button
+            onClick={() => toggleEyesOnlyMode()}
+            className="p-1 text-slate-400 hover:text-sky-300 transition-colors cursor-pointer"
+            title="Toggle Eyes-Only Mode (Hides all UI, displays only Eyes)"
+          >
+            <Eye className="w-3.5 h-3.5 text-sky-400" />
           </button>
         </div>
 
-        {/* Right Status Actions */}
-        <div className="flex items-center gap-1.5 shrink-0 pl-1.5">
-          {/* Weather Pill */}
+        {/* Right Side: PRO, Weather, Battery Ring, Pin, Settings, Close */}
+        <div className="flex items-center gap-2.5 shrink-0 pl-2">
+          {/* PRO Badge with Bot Icon */}
+          <button
+            onClick={() => setIsProModalOpen(true)}
+            className="flex items-center gap-1 text-[11px] font-mono font-bold text-slate-300 hover:text-white transition-colors cursor-pointer"
+            title="AI Agent Pro Features"
+          >
+            <Bot className="w-3.5 h-3.5 text-slate-300" />
+            <span>PRO</span>
+          </button>
+
+          {/* Weather Indicator */}
           <div
             onClick={() => {
               showToast({
                 appName: 'Weather',
-                title: '7°C • Sunny & Clear',
-                message: 'Humidity: 48% • Wind: 8 km/h NW • Pressure: 1014 hPa',
+                title: '28°C • Sunny & Clear',
+                message: 'Real-time meteorological telemetry',
                 icon: 'Sun',
-                duration: 3500
+                duration: 2500
               });
             }}
-            className="flex items-center gap-1 text-[11px] font-mono text-slate-300 px-2 py-0.5 rounded-md bg-white/5 border border-white/10 hover:bg-white/10 cursor-pointer transition-colors"
-            title="Live Weather (Click for full forecast)"
+            className="flex items-center gap-1 text-[11px] font-mono text-slate-200 cursor-pointer hover:text-white transition-colors"
+            title="28°C Sunny & Clear"
           >
             <span className="text-amber-400">☀️</span>
-            <span>{weather ? Math.round(((weather.temp - 32) * 5) / 9) : 7}°C</span>
+            <span>28°C</span>
           </div>
 
-          {/* Battery Indicator */}
+          {/* Battery Indicator with Circular Progress Ring */}
           <div
-            className="flex items-center gap-1 text-[11px] font-mono text-slate-300 px-2 py-0.5 rounded-md bg-white/5 border border-white/10"
-            title="System Battery: AC Connected (100%)"
+            className="flex items-center gap-1 text-[11px] font-mono text-slate-200"
+            title={`Battery Level: ${batteryPct}% (Connected to AC)`}
           >
-            <span>{systemStatus?.batteryLevel !== undefined ? `${systemStatus.batteryLevel}%` : '0%'}</span>
-            <span className="text-emerald-400 text-xs">⚡</span>
+            <span>{batteryPct}%</span>
+            <svg className="w-3.5 h-3.5 -rotate-90 shrink-0" viewBox="0 0 16 16">
+              <circle
+                cx="8"
+                cy="8"
+                r={ringRadius}
+                className="text-white/20"
+                strokeWidth="2"
+                stroke="currentColor"
+                fill="none"
+              />
+              <circle
+                cx="8"
+                cy="8"
+                r={ringRadius}
+                className="text-white"
+                strokeWidth="2"
+                strokeDasharray={ringCircumference}
+                strokeDashoffset={ringOffset}
+                strokeLinecap="round"
+                stroke="currentColor"
+                fill="none"
+              />
+            </svg>
           </div>
 
-          {/* Snip / Scissors */}
+          {/* Pin */}
           <button
-            onClick={handleCaptureScreen}
-            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-            title="Instant Screen Snip (Captures desktop)"
+            onClick={togglePin}
+            className={`p-1 rounded-md transition-colors cursor-pointer ${
+              isPinned ? 'text-sky-400' : 'text-slate-400 hover:text-white'
+            }`}
+            title={isPinned ? 'Unpin' : 'Pin Open'}
           >
-            <Scissors className="w-3.5 h-3.5" />
+            {isPinned ? <Pin className="w-3.5 h-3.5 fill-sky-400" /> : <Pin className="w-3.5 h-3.5" />}
           </button>
 
           {/* Settings */}
           <button
             onClick={() => setActiveSubView('settings')}
             className={`p-1 rounded-md transition-colors cursor-pointer ${
-              activeSubView === 'settings'
-                ? 'text-sky-300 bg-sky-500/20'
-                : 'text-slate-400 hover:text-white hover:bg-white/10'
+              activeSubView === 'settings' ? 'text-sky-300' : 'text-slate-400 hover:text-white'
             }`}
-            title="NOVA Notch Settings & Customization"
+            title="Settings"
           >
             <Sliders className="w-3.5 h-3.5" />
           </button>
 
-          {/* Pin */}
-          <button
-            onClick={togglePin}
-            className={`p-1 rounded-md transition-colors cursor-pointer ${
-              isPinned ? 'text-sky-400 bg-sky-500/20' : 'text-slate-400 hover:text-white hover:bg-white/10'
-            }`}
-            title={isPinned ? 'Unpin (Auto-collapses on mouse leave)' : 'Pin Open (Locks floating dashboard)'}
-          >
-            {isPinned ? <Pin className="w-3.5 h-3.5 fill-sky-400" /> : <PinOff className="w-3.5 h-3.5" />}
-          </button>
-
-          {/* Close / Collapse */}
+          {/* Close */}
           <button
             onClick={collapseNotch}
-            className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="p-1 rounded-md text-slate-400 hover:text-white transition-colors cursor-pointer"
             title="Collapse Notch (Esc)"
           >
             <X className="w-3.5 h-3.5" />
@@ -461,9 +597,9 @@ export const NotchExpandedDashboard: React.FC = () => {
       {/* 2. SUB-VIEW OR MAIN DASHBOARD CONTENT                          */}
       {/* ============================================================== */}
       {activeSubView !== null ? (
-        <div className="p-3 flex flex-col h-[280px] overflow-hidden">
-          {/* SubView Navigation Header */}
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-2.5">
+          {/* SubView Navigation Header (Fixed) */}
+          <div className="shrink-0 flex items-center justify-between pb-2 mb-2 border-b border-white/10 sticky top-0 z-10 bg-black/40 backdrop-blur-md px-1 py-1 rounded-lg">
             <button
               onClick={() => setActiveSubView(null)}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/15 text-xs font-semibold text-white transition-colors cursor-pointer"
@@ -497,8 +633,16 @@ export const NotchExpandedDashboard: React.FC = () => {
             <div className="w-16" />
           </div>
 
-          {/* SubView Container */}
-          <div className="flex-1 overflow-y-auto scrollbar-none">
+          {/* SubView Scrollable Body */}
+          <div
+            ref={subViewScrollRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onWheel={(e) => e.stopPropagation()}
+            className="flex-1 min-h-0 overflow-y-auto notch-dashboard-scroll scroll-smooth overscroll-contain pr-1"
+          >
             {activeSubView === 'clipboard' && <ClipboardView />}
             {activeSubView === 'shelf' && <DropShelfView />}
             {activeSubView === 'time' && <TimeAnalyticsView />}
@@ -513,428 +657,592 @@ export const NotchExpandedDashboard: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="p-2.5 flex flex-col gap-2">
-          {/* ============================================================== */}
-          {/* 2A. LIVE ACTIVITIES ROW                                        */}
-          {/* ============================================================== */}
-          <div className="flex items-center gap-2 px-1">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="tracking-wide">LIVE (1)</span>
-            </div>
+        <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
+          {/* Main Dashboard Scroll Container */}
+          <div
+            ref={dashboardScrollRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onWheel={(e) => e.stopPropagation()}
+            onScroll={checkScrollState}
+            className={`flex-1 min-h-0 overflow-y-auto notch-dashboard-scroll scroll-smooth overscroll-contain p-2.5 flex flex-col gap-2.5 relative select-none ${
+              isDragging ? 'cursor-grabbing' : 'cursor-default'
+            }`}
+          >
+            {/* ============================================================ */}
+            {/* 2A. PERSONALIZED GREETING BANNER WITH ANIMATION              */}
+            {/* ============================================================ */}
+            <PersonalizedGreetingBanner
+              mode="dashboard"
+              onOpenSettings={() => setActiveSubView('settings')}
+            />
 
-            {/* Task Capsule Pill */}
-            <div className="flex-1 flex items-center justify-between gap-3 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/10 hover:border-sky-400/30 transition-all">
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-5 h-5 rounded-md bg-blue-500/20 border border-blue-400/40 flex items-center justify-center text-blue-300 shrink-0">
-                  <span className="font-mono text-[10px] font-bold">&lt;&gt;</span>
-                </div>
-                <span className="text-xs font-semibold text-white tracking-tight truncate max-w-[210px]">
-                  {primaryTask.title}
-                </span>
-              </div>
-
-              {/* Progress & Speed */}
-              <div className="flex items-center gap-2 shrink-0">
-                {/* Mini animated progress bar */}
-                <div className="w-24 h-1.5 rounded-full bg-white/10 overflow-hidden hidden sm:block">
+            {/* ============================================================ */}
+            {/* 2B. MAIN TWO-COLUMN DASHBOARD GRID (Matching screenshot)     */}
+            {/* ============================================================ */}
+            <div className="grid grid-cols-2 gap-2.5 shrink-0">
+              {/* ========================================================== */}
+              {/* LEFT COLUMN: MEDIA PLAYER GLASS CARD                       */}
+              {/* ========================================================== */}
+              <div className="rounded-2xl bg-white/[0.03] border border-white/[0.07] p-3 flex flex-col justify-between shadow-inner relative group">
+                {/* Top Row: Thumbnail + Title */}
+                <div className="flex items-center gap-2.5">
                   <div
-                    className="h-full bg-gradient-to-r from-sky-400 to-cyan-400 rounded-full transition-all duration-300"
-                    style={{ width: `${primaryTask.progress}%` }}
-                  />
-                </div>
-                <span className="text-[11px] font-mono font-bold text-sky-400">
-                  {primaryTask.progress}%
-                </span>
-              </div>
-            </div>
-          </div>
+                    onClick={() => audioEngine.toggle()}
+                    className="w-12 h-12 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-center shrink-0 cursor-pointer shadow-sm group-hover:border-white/20 transition-all"
+                  >
+                    <Music2 className="w-5 h-5 text-slate-300" />
+                  </div>
 
-          {/* ============================================================== */}
-          {/* 2B. MAIN TWO-COLUMN DASHBOARD GRID                             */}
-          {/* ============================================================== */}
-          <div className="grid grid-cols-2 gap-2.5">
-            {/* ============================================================ */}
-            {/* LEFT COLUMN: MEDIA PLAYER GLASS CARD                         */}
-            {/* ============================================================ */}
-            <div className="rounded-2xl bg-white/[0.04] border border-white/[0.08] p-3 flex flex-col justify-between shadow-inner">
-              {/* Top Row: Cover Art + Track Details + Expand Button */}
-              <div className="flex items-start gap-2.5">
-                {/* Album Cover Art / Vinyl */}
-                <div
-                  onClick={() => audioEngine.toggle()}
-                  className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-950 to-slate-900 border border-white/10 flex items-center justify-center shrink-0 cursor-pointer relative group overflow-hidden shadow-md"
-                  title="Click to Play / Pause"
-                >
-                  <Music2
-                    className={`w-5 h-5 text-sky-400 transition-transform ${
-                      isPlaying ? 'animate-pulse scale-110' : 'group-hover:scale-105'
-                    }`}
-                  />
-                  {isPlaying && (
-                    <span className="absolute inset-0 border border-sky-400/50 rounded-xl animate-ping opacity-25" />
-                  )}
-                </div>
-
-                {/* Track Title & Artist */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
                     <h3 className="text-sm font-bold text-white tracking-tight truncate">
                       {isPlaying ? currentTrack.title : 'Not playing'}
                     </h3>
-                    <button
-                      onClick={() => setIsFullscreenMusicOpen(true)}
-                      className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
-                      title="Fullscreen Music Studio"
-                    >
-                      <Maximize2 className="w-3 h-3" />
-                    </button>
+                    <p className="text-xs text-slate-400 truncate">
+                      {isPlaying ? currentTrack.artist : 'Play something to see it here'}
+                    </p>
                   </div>
-                  <p className="text-xs text-slate-400 truncate">
-                    {isPlaying ? currentTrack.artist : 'Play something to see it here'}
-                  </p>
                 </div>
-              </div>
 
-              {/* Ambient quote with interactive LYRICS button */}
-              <div className="flex items-center justify-between gap-1 text-[11px] text-slate-300 italic py-1 px-1.5 rounded-lg bg-black/20 my-1">
-                <span className="truncate max-w-[200px] font-mono">
-                  &ldquo;{activeLyricsLine}&rdquo;
-                </span>
-                <button
-                  onClick={() => setIsLyricsOpen(!isLyricsOpen)}
-                  className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider transition-colors cursor-pointer shrink-0 ${
-                    isLyricsOpen
-                      ? 'bg-cyan-500/30 text-cyan-300 border border-cyan-400/40'
-                      : 'text-sky-400 hover:bg-white/10'
-                  }`}
-                >
-                  LYRICS
-                </button>
-              </div>
-
-              {/* Dropdown selectors row: Playlist & Audio Output */}
-              <div className="flex items-center gap-1.5 text-[10px] relative">
-                {/* Playlist button */}
-                <div className="relative">
+                {/* Open Media Player Centered Badge */}
+                <div className="flex items-center justify-center my-1.5">
                   <button
-                    onClick={() => setIsPlaylistMenuOpen(!isPlaylistMenuOpen)}
-                    className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 flex items-center gap-1 cursor-pointer transition-colors"
+                    onClick={() => setIsFullscreenMusicOpen(true)}
+                    className="px-2.5 py-1 rounded-md bg-black/80 hover:bg-black text-[11px] font-medium text-slate-200 hover:text-white border border-white/20 shadow-md transition-all cursor-pointer flex items-center gap-1.5"
                   >
-                    <span>Playlist</span>
-                    <ChevronRight className="w-2.5 h-2.5" />
+                    <span>Open media player</span>
                   </button>
-
-                  {/* Playlist Dropdown */}
-                  {isPlaylistMenuOpen && (
-                    <div className="absolute left-0 bottom-full mb-1 w-44 bg-slate-900/95 border border-white/15 rounded-xl shadow-2xl p-1 z-30 backdrop-blur-xl">
-                      {PLAYLIST.map((t, idx) => (
-                        <button
-                          key={t.id}
-                          onClick={() => {
-                            audioEngine.selectTrack(idx);
-                            audioEngine.play();
-                            setIsPlaylistMenuOpen(false);
-                          }}
-                          className={`w-full text-left px-2 py-1.5 rounded-lg text-xs truncate flex items-center justify-between cursor-pointer ${
-                            currentTrack.id === t.id
-                              ? 'bg-sky-500/20 text-sky-300 font-bold'
-                              : 'text-slate-300 hover:bg-white/10'
-                          }`}
-                        >
-                          <span className="truncate">{t.title}</span>
-                          {currentTrack.id === t.id && <Check className="w-3 h-3 text-sky-400 shrink-0" />}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
 
-                {/* Audio Output button */}
-                <div className="relative">
-                  <button
-                    onClick={() => setIsAudioOutputMenuOpen(!isAudioOutputMenuOpen)}
-                    className="px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 text-slate-300 flex items-center gap-1 cursor-pointer transition-colors"
-                  >
-                    <Headphones className="w-2.5 h-2.5 text-sky-400" />
-                    <span className="truncate max-w-[105px]">
-                      {activeDevice?.label || 'Audio Output 1'}
-                    </span>
-                  </button>
-
-                  {/* Output Devices Dropdown */}
-                  {isAudioOutputMenuOpen && (
-                    <div className="absolute left-0 bottom-full mb-1 w-52 bg-slate-900/95 border border-white/15 rounded-xl shadow-2xl p-1 z-30 backdrop-blur-xl">
-                      {audioDevices.map((d) => (
-                        <button
-                          key={d.id}
-                          onClick={() => {
-                            audioDeviceService.selectDevice(d.id);
-                            setActiveDevice(d);
-                            setIsAudioOutputMenuOpen(false);
-                            soundService.playTick();
-                          }}
-                          className={`w-full text-left px-2 py-1.5 rounded-lg text-xs truncate flex items-center justify-between cursor-pointer ${
-                            activeDevice?.id === d.id
-                              ? 'bg-sky-500/20 text-sky-300 font-bold'
-                              : 'text-slate-300 hover:bg-white/10'
-                          }`}
-                        >
-                          <span className="truncate">{d.label}</span>
-                          {activeDevice?.id === d.id && <Check className="w-3 h-3 text-sky-400 shrink-0" />}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Scrubber Progress Bar */}
-              <div className="space-y-0.5 pt-1">
-                <div
-                  onClick={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                    audioEngine.seek(ratio * (currentTrack.duration || 180));
-                  }}
-                  className="w-full h-1.5 bg-white/10 hover:bg-white/15 rounded-full relative cursor-pointer group"
-                >
+                {/* Scrubber Progress Bar */}
+                <div className="space-y-0.5">
                   <div
-                    className="h-full bg-gradient-to-r from-sky-400 to-cyan-400 rounded-full relative"
-                    style={{
-                      width: `${Math.min(
-                        100,
-                        (currentTime / (currentTrack.duration || 180)) * 100
-                      )}%`
+                    onClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                      audioEngine.seek(ratio * (currentTrack.duration || 180));
                     }}
+                    className="w-full h-1 bg-white/20 hover:bg-white/30 rounded-full relative cursor-pointer"
                   >
-                    <span className="absolute right-0 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-white shadow-md opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div
+                      className="h-full bg-white rounded-full relative"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          (currentTime / (currentTrack.duration || 180)) * 100
+                        )}%`
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[10px] font-mono text-slate-400">
+                    <span>{formatSecs(currentTime)}</span>
+                    <span>{isPlaying ? formatSecs(currentTrack.duration) : '--:--'}</span>
                   </div>
                 </div>
-                <div className="flex justify-between text-[10px] font-mono text-slate-400">
-                  <span>{formatSecs(currentTime)}</span>
-                  <span>{isPlaying ? formatSecs(currentTrack.duration) : '--:--'}</span>
+
+                {/* Playback Controls Row: Centered Big White Play Button */}
+                <div className="flex items-center justify-center gap-6 pt-1">
+                  <button
+                    onClick={() => audioEngine.prevTrack()}
+                    className="p-1 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                    title="Previous Track"
+                  >
+                    <SkipBack className="w-4 h-4 fill-current" />
+                  </button>
+
+                  <button
+                    onClick={() => audioEngine.toggle()}
+                    className="w-9 h-9 rounded-full bg-white text-black flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                    title={isPlaying ? 'Pause' : 'Play'}
+                  >
+                    {isPlaying ? (
+                      <Pause className="w-4 h-4 fill-black" />
+                    ) : (
+                      <Play className="w-4 h-4 fill-black ml-0.5" />
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => audioEngine.nextTrack()}
+                    className="p-1 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                    title="Next Track"
+                  >
+                    <SkipForward className="w-4 h-4 fill-current" />
+                  </button>
                 </div>
               </div>
 
-              {/* Playback Controls Row */}
-              <div className="flex items-center justify-center gap-5 pt-0.5">
-                <button
-                  onClick={() => audioEngine.prevTrack()}
-                  className="p-1 rounded-full text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                  title="Previous Track"
+              {/* ========================================================== */}
+              {/* RIGHT COLUMN: UTILITIES & TELEMETRY GLASS CARD             */}
+              {/* ========================================================== */}
+              <div className="rounded-2xl bg-white/[0.03] border border-white/[0.07] p-3 flex flex-col justify-between shadow-inner">
+                {/* 1. Focus Timer Section (Rounded capsule) */}
+                <div
+                  onClick={() => {
+                    if (isPomodoroRunning) pausePomodoro();
+                    else startPomodoro();
+                  }}
+                  className="flex items-center justify-between p-2 rounded-xl bg-black/40 border border-white/5 hover:border-white/15 transition-colors cursor-pointer"
+                  title={isPomodoroRunning ? 'Pause Focus' : 'Start Focus'}
                 >
-                  <SkipBack className="w-4 h-4 fill-current" />
-                </button>
+                  <div className="flex items-center gap-2">
+                    <Coffee className="w-3.5 h-3.5 text-slate-300" />
+                    <span className="text-xs font-semibold text-white">Focus timer</span>
+                  </div>
 
-                {/* Big Centered Play/Pause Button */}
-                <button
-                  onClick={() => audioEngine.toggle()}
-                  className="w-8 h-8 rounded-full bg-white text-slate-950 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer relative"
-                  title={isPlaying ? 'Pause' : 'Play'}
-                >
-                  {isPlaying ? (
-                    <Pause className="w-4 h-4 fill-slate-950" />
-                  ) : (
-                    <Play className="w-4 h-4 fill-slate-950 ml-0.5" />
-                  )}
-                  {isPlaying && (
-                    <span className="absolute -inset-1 rounded-full border border-sky-400/40 animate-ping opacity-30" />
-                  )}
-                </button>
+                  <div className="flex items-center gap-1 font-mono text-xs text-slate-300">
+                    <span>{formatSecs(pomodoroSeconds)}</span>
+                    <ChevronRight className="w-3 h-3 text-slate-400" />
+                  </div>
+                </div>
 
-                <button
-                  onClick={() => audioEngine.nextTrack()}
-                  className="p-1 rounded-full text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                  title="Next Track"
-                >
-                  <SkipForward className="w-4 h-4 fill-current" />
-                </button>
+                {/* 2. System Usage Bars (CPU & RAM) */}
+                <div className="space-y-2 py-1">
+                  {/* CPU Bar */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="w-8 font-mono text-slate-400 text-[11px]">CPU</span>
+                    <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+                      <div
+                        className="h-full bg-white rounded-full transition-all duration-500"
+                        style={{ width: `${cpuUsage}%` }}
+                      />
+                    </div>
+                    <span className="w-8 text-right font-mono text-[11px] font-bold text-slate-300">
+                      {cpuUsage}%
+                    </span>
+                  </div>
 
-                {/* Animated Equalizer Visualizer Bars */}
-                <div className="flex items-end gap-0.5 h-3.5 px-1 ml-1" title="Live Frequency Equalizer">
-                  <span
-                    className="w-0.5 bg-sky-400 rounded-full transition-all duration-75"
-                    style={{ height: `${Math.max(2, (frequencies[0] / 255) * 14)}px` }}
-                  />
-                  <span
-                    className="w-0.5 bg-cyan-400 rounded-full transition-all duration-75"
-                    style={{ height: `${Math.max(2, (frequencies[1] / 255) * 14)}px` }}
-                  />
-                  <span
-                    className="w-0.5 bg-indigo-400 rounded-full transition-all duration-75"
-                    style={{ height: `${Math.max(2, (frequencies[2] / 255) * 14)}px` }}
-                  />
-                  <span
-                    className="w-0.5 bg-sky-300 rounded-full transition-all duration-75"
-                    style={{ height: `${Math.max(2, (frequencies[3] / 255) * 14)}px` }}
-                  />
+                  {/* RAM Bar */}
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="w-8 font-mono text-slate-400 text-[11px]">RAM</span>
+                    <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+                      <div
+                        className="h-full bg-white rounded-full transition-all duration-500"
+                        style={{ width: `${ramUsage}%` }}
+                      />
+                    </div>
+                    <span className="w-8 text-right font-mono text-[11px] font-bold text-slate-300">
+                      {ramUsage}%
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Network Telemetry */}
+                <div className="flex items-center justify-between text-xs pt-0.5">
+                  <span className="font-semibold text-white">Network</span>
+                  <div className="flex items-center gap-3 font-mono text-[11px] text-slate-300">
+                    <span className="flex items-center gap-1">
+                      <ArrowDown className="w-3 h-3" />
+                      <span>{downSpeed}</span>
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <ArrowUp className="w-3 h-3" />
+                      <span>{upSpeed}</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4. Bottom 3 Pill Buttons (Calculator, Scissors, Activity) */}
+                <div className="grid grid-cols-3 gap-1.5 pt-1.5">
+                  <button
+                    onClick={() => setIsCalculatorOpen(true)}
+                    className="p-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.1] border border-white/5 flex items-center justify-center text-slate-300 hover:text-white transition-all cursor-pointer shadow-sm active:scale-95"
+                    title="Glass Calculator"
+                  >
+                    <CalculatorIcon className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={handleCaptureScreen}
+                    className="p-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.1] border border-white/5 flex items-center justify-center text-slate-300 hover:text-white transition-all cursor-pointer shadow-sm active:scale-95"
+                    title="Screen Snipping"
+                  >
+                    <Scissors className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={() => setActiveSubView('time')}
+                    className="p-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.1] border border-white/5 flex items-center justify-center text-slate-300 hover:text-white transition-all cursor-pointer shadow-sm active:scale-95"
+                    title="Productivity Analytics"
+                  >
+                    <Activity className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             </div>
 
             {/* ============================================================ */}
-            {/* RIGHT COLUMN: UTILITIES & SYSTEM TELEMETRY GLASS CARD        */}
+            {/* 2C. EXTENDED SCROLLABLE CARDS (Revealed smoothly on scroll)  */}
             {/* ============================================================ */}
-            <div className="rounded-2xl bg-white/[0.04] border border-white/[0.08] p-3 flex flex-col justify-between shadow-inner">
-              {/* 1. Focus Timer Section */}
-              <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.03] border border-white/5">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400">
-                    <Coffee className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="text-xs font-semibold text-white">Focus timer</span>
-                </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm font-bold text-amber-300">
-                    {formatSecs(pomodoroSeconds)}
-                  </span>
-                  <button
-                    onClick={() => {
-                      if (isPomodoroRunning) pausePomodoro();
-                      else startPomodoro();
-                    }}
-                    className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
-                    title={isPomodoroRunning ? 'Pause Focus' : 'Start Focus'}
+            {/* Card 4: Quick App Shortcuts Dock */}
+            <div className="rounded-2xl bg-white/[0.03] border border-white/[0.07] p-3 flex flex-col gap-2 shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                  <span className="text-xs font-bold text-white tracking-tight">Quick App Launch Dock</span>
+                </div>
+                <button
+                  onClick={() => setIsQuickAppsOpen(true)}
+                  className="text-[10px] text-sky-400 hover:text-sky-300 font-medium flex items-center gap-0.5 cursor-pointer"
+                >
+                  <span>Manage</span>
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+
+              {/* Grid of 8 App Quick Launcher Tiles */}
+              <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 pt-0.5">
+                {quickDockApps.map((app) => {
+                  const IconComponent = app.icon;
+                  return (
+                    <button
+                      key={app.id}
+                      onClick={() => {
+                        soundService.playPop();
+                        showToast({
+                          appName: 'App Launcher',
+                          title: `Opening ${app.name}`,
+                          message: `Invoking ${app.exe} protocol...`,
+                          icon: 'Play',
+                          duration: 1800
+                        });
+                      }}
+                      className="group flex flex-col items-center gap-1 p-2 rounded-xl bg-white/[0.02] hover:bg-white/[0.08] border border-white/5 hover:border-sky-400/30 transition-all cursor-pointer"
+                    >
+                      <div
+                        className="w-7 h-7 rounded-lg flex items-center justify-center transition-transform group-hover:scale-110 shadow-sm"
+                        style={{ backgroundColor: `${app.color}20`, border: `1px solid ${app.color}40` }}
+                      >
+                        <IconComponent className="w-3.5 h-3.5" style={{ color: app.color }} />
+                      </div>
+                      <span className="text-[10px] font-medium text-slate-300 group-hover:text-white truncate max-w-full">
+                        {app.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Card 5: Active Background Tasks & Downloads */}
+            <div className="rounded-2xl bg-white/[0.03] border border-white/[0.07] p-3 flex flex-col gap-2 shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="text-xs font-bold text-white tracking-tight">Active Background Tasks</span>
+                </div>
+                <button
+                  onClick={() => setActiveSubView('activities')}
+                  className="text-[10px] text-sky-400 hover:text-sky-300 font-medium flex items-center gap-0.5 cursor-pointer"
+                >
+                  <span>All Tasks</span>
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+
+              {/* Task Cards List */}
+              <div className="space-y-1.5 pt-0.5">
+                {tasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="p-2 rounded-xl bg-black/30 border border-white/5 flex items-center justify-between gap-3 hover:border-white/10 transition-colors"
                   >
-                    {isPomodoroRunning ? (
-                      <Pause className="w-3 h-3 fill-current" />
-                    ) : (
-                      <Play className="w-3 h-3 fill-current ml-0.5" />
-                    )}
-                  </button>
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <div className="w-6 h-6 rounded-lg bg-sky-500/15 border border-sky-400/30 flex items-center justify-center text-sky-400 shrink-0">
+                        <Download className="w-3 h-3" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-white truncate max-w-[200px]">
+                            {task.title}
+                          </span>
+                          <span className="font-mono text-[10px] font-bold text-sky-400 shrink-0 ml-2">
+                            {task.progress}%
+                          </span>
+                        </div>
+                        <div className="w-full h-1 rounded-full bg-white/10 overflow-hidden mt-1">
+                          <div
+                            className="h-full bg-gradient-to-r from-sky-400 to-emerald-400 rounded-full transition-all duration-300"
+                            style={{ width: `${task.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => {
+                          if (task.status === 'running') pauseTask(task.id);
+                          else resumeTask(task.id);
+                        }}
+                        className="p-1 rounded-md text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                        title={task.status === 'running' ? 'Pause' : 'Resume'}
+                      >
+                        {task.status === 'running' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                      </button>
+                      <button
+                        onClick={() => cancelTask(task.id)}
+                        className="p-1 rounded-md text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        title="Cancel"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Card 6: Clipboard Stash & Drop Shelf Glance */}
+            <div className="grid grid-cols-2 gap-2.5 shrink-0">
+              <div className="rounded-2xl bg-white/[0.03] border border-white/[0.07] p-3 flex flex-col justify-between shadow-inner">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <Clipboard className="w-3.5 h-3.5 text-cyan-400" />
+                    <span className="text-xs font-bold text-white">Recent Clipboard</span>
+                  </div>
                   <button
-                    onClick={() => setActiveSubView('time')}
-                    className="p-1 rounded-md text-slate-400 hover:text-white transition-colors cursor-pointer"
-                    title="View Pomodoro Settings & Analytics"
+                    onClick={() => setActiveSubView('clipboard')}
+                    className="text-[10px] text-cyan-400 hover:text-cyan-300 flex items-center gap-0.5 cursor-pointer"
                   >
+                    <span>View All</span>
                     <ChevronRight className="w-3 h-3" />
                   </button>
                 </div>
-              </div>
 
-              {/* 2. System Usage Bars (CPU & RAM) */}
-              <div className="space-y-1.5 py-0.5">
-                {/* CPU Bar */}
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="w-8 font-mono font-bold text-slate-400 text-[11px]">CPU</span>
-                  <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
+                <div className="space-y-1">
+                  {(clipboardHistory && clipboardHistory.length > 0
+                    ? clipboardHistory.slice(0, 2)
+                    : [
+                        { id: 'clip-1', text: 'https://github.com/chetandixit2407/Nova' },
+                        { id: 'clip-2', text: 'npm run build' }
+                      ]
+                  ).map((clip) => (
                     <div
-                      className="h-full bg-gradient-to-r from-slate-200 to-white rounded-full transition-all duration-500"
-                      style={{ width: `${cpuUsage}%` }}
-                    />
-                  </div>
-                  <span className="w-8 text-right font-mono text-[11px] font-bold text-white">
-                    {cpuUsage}%
-                  </span>
-                </div>
-
-                {/* RAM Bar */}
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="w-8 font-mono font-bold text-slate-400 text-[11px]">RAM</span>
-                  <div className="flex-1 h-2 rounded-full bg-white/10 overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-slate-200 to-white rounded-full transition-all duration-500"
-                      style={{ width: `${ramUsage}%` }}
-                    />
-                  </div>
-                  <span className="w-8 text-right font-mono text-[11px] font-bold text-white">
-                    {ramUsage}%
-                  </span>
+                      key={clip.id}
+                      onClick={() => {
+                        copyText(clip.text);
+                        setCopiedRecentId(clip.id);
+                        setTimeout(() => setCopiedRecentId(null), 1500);
+                        soundService.playPop();
+                      }}
+                      className="p-1.5 rounded-lg bg-black/30 hover:bg-white/10 border border-white/5 text-[10px] font-mono text-slate-300 flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                      title="Click to Copy"
+                    >
+                      <span className="truncate max-w-[160px]">{clip.text}</span>
+                      {copiedRecentId === clip.id ? (
+                        <Check className="w-3 h-3 text-emerald-400 shrink-0" />
+                      ) : (
+                        <Copy className="w-3 h-3 text-slate-500 shrink-0" />
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
 
-              {/* 3. Notifications Alert Pill */}
-              <div
-                onClick={() => setActiveSubView('notifications')}
-                className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-sky-500/10 border border-sky-400/20 hover:bg-sky-500/15 transition-colors cursor-pointer text-xs"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <Bell className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                  <span className="text-[11px] text-slate-200 truncate">
-                    {unreadNotifs.length > 0
-                      ? `${unreadNotifs.length} new alert${unreadNotifs.length > 1 ? 's' : ''} · ${unreadNotifs[0].title}`
-                      : '2 new alerts · Virus & Threat Protection'}
-                  </span>
+              <div className="rounded-2xl bg-white/[0.03] border border-white/[0.07] p-3 flex flex-col justify-between shadow-inner">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <FolderUp className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="text-xs font-bold text-white">Drop Shelf</span>
+                  </div>
+                  <button
+                    onClick={() => setActiveSubView('shelf')}
+                    className="text-[10px] text-indigo-400 hover:text-indigo-300 flex items-center gap-0.5 cursor-pointer"
+                  >
+                    <span>Open Shelf</span>
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
-              </div>
 
-              {/* 4. Network Telemetry */}
-              <div className="flex items-center justify-between text-xs pt-0.5">
-                <span className="font-semibold text-white">Network</span>
-                <div className="flex items-center gap-3 font-mono text-[11px]">
-                  <span className="flex items-center gap-1 text-emerald-400">
-                    <ArrowDown className="w-3 h-3 stroke-[3]" />
-                    <span>{downSpeed}</span>
-                  </span>
-                  <span className="flex items-center gap-1 text-sky-400">
-                    <ArrowUp className="w-3 h-3 stroke-[3]" />
-                    <span>{upSpeed}</span>
+                <div className="p-2 rounded-xl bg-black/30 border border-dashed border-white/10 flex flex-col items-center justify-center text-center gap-0.5">
+                  <FileUp className="w-3.5 h-3.5 text-indigo-400" />
+                  <span className="text-[10px] font-medium text-slate-300">
+                    {dropShelfFiles && dropShelfFiles.length > 0
+                      ? `${dropShelfFiles.length} file(s) staged`
+                      : 'Drop files to top notch'}
                   </span>
                 </div>
               </div>
             </div>
+
+            {/* Card: Smart Phone Link & Live Notification Mirror */}
+            <div className="rounded-2xl bg-gradient-to-br from-indigo-950/30 via-slate-900/40 to-slate-950/40 border border-sky-500/20 p-3 flex flex-col gap-2 shrink-0 relative overflow-hidden">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-sky-400" />
+                  <span className="text-xs font-bold text-white tracking-tight">Smart Phone Live Sync</span>
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] font-mono bg-sky-500/20 text-sky-300 border border-sky-400/30 font-semibold">
+                    WINDOWS NOTCH
+                  </span>
+                </div>
+                <button
+                  onClick={() => setIsPhoneSyncOpen(true)}
+                  className="text-[10px] text-sky-400 hover:text-sky-300 font-medium flex items-center gap-0.5 cursor-pointer"
+                >
+                  <span>Configure</span>
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              </div>
+
+              {phoneDevice ? (
+                <div className="flex items-center justify-between p-2 rounded-xl bg-black/40 border border-white/5 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-sky-500/20 border border-sky-400/30 flex items-center justify-center text-sky-400">
+                      <Smartphone className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-white text-[11px]">{phoneDevice.name}</span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      </div>
+                      <span className="text-[10px] text-slate-400 block font-mono">
+                        {phoneDevice.connectionType === 'bluetooth' ? 'Bluetooth LE (ANCS)' : 'Wi-Fi LAN Bridge'} • {phoneDevice.batteryLevel}% ⚡
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => {
+                        phoneSyncService.triggerIncomingCall({
+                          callerName: 'Sophia Martinez',
+                          callerNumber: '+1 (555) 019-2834',
+                          appType: 'cellular'
+                        });
+                        collapseNotch();
+                      }}
+                      className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-[10px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                      title="Test live incoming call ringing animation on notch"
+                    >
+                      <PhoneCall className="w-3 h-3" />
+                      <span>Test Call</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between p-2 rounded-xl bg-black/30 border border-white/5 text-xs">
+                  <span className="text-[10px] text-slate-400">No smartphone connected</span>
+                  <button
+                    onClick={() => setIsPhoneSyncOpen(true)}
+                    className="px-2 py-0.5 rounded bg-sky-500 hover:bg-sky-400 text-white text-[10px] font-semibold cursor-pointer"
+                  >
+                    Pair Phone
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Card 7: Audio & Luminance Quick Sliders */}
+            <div className="rounded-2xl bg-white/[0.03] border border-white/[0.07] p-3 flex flex-col gap-2 shrink-0">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-white">Audio & Luminance Controls</span>
+                <span className="text-[10px] font-mono text-slate-400">Live Hardware Sync</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="p-2 rounded-xl bg-black/30 border border-white/5 space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1 text-slate-300">
+                      <Volume2 className="w-3 h-3 text-sky-400" />
+                      Volume
+                    </span>
+                    <span className="font-mono text-[10px] font-bold text-white">{masterVolume}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={masterVolume}
+                    onChange={(e) => handleVolumeChange(parseInt(e.target.value))}
+                    className="w-full h-1 bg-white/15 rounded-lg appearance-none cursor-pointer accent-sky-400 interactive-control"
+                  />
+                </div>
+
+                <div className="p-2 rounded-xl bg-black/30 border border-white/5 space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1 text-slate-300">
+                      <Sun className="w-3 h-3 text-amber-400" />
+                      Brightness
+                    </span>
+                    <span className="font-mono text-[10px] font-bold text-white">{displayBrightness}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={30}
+                    max={100}
+                    value={displayBrightness}
+                    onChange={(e) => handleBrightnessChange(parseInt(e.target.value))}
+                    className="w-full h-1 bg-white/15 rounded-lg appearance-none cursor-pointer accent-amber-400 interactive-control"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Breathing Space */}
+            <div className="h-5 shrink-0" />
           </div>
 
-          {/* ============================================================== */}
-          {/* 2C. BOTTOM QUICK ACTIONS ROW                                   */}
-          {/* ============================================================== */}
-          <div className="grid grid-cols-4 gap-2 pt-0.5">
-            {/* Quick Apps button */}
-            <button
-              onClick={() => setIsQuickAppsOpen(true)}
-              className="py-1.5 px-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-98"
-            >
-              <LayoutGrid className="w-3.5 h-3.5 text-sky-400" />
-              <span>Quick Apps</span>
-            </button>
-
-            {/* Calculator button */}
-            <button
-              onClick={() => setIsCalculatorOpen(true)}
-              className="py-1.5 px-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-98"
-              title="Open Glass Calculator"
-            >
-              <CalculatorIcon className="w-3.5 h-3.5 text-slate-300" />
-            </button>
-
-            {/* Screen Snip button */}
-            <button
-              onClick={handleCaptureScreen}
-              className="py-1.5 px-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-98"
-              title="Capture Screen Snipping"
-            >
-              <Scissors className="w-3.5 h-3.5 text-slate-300" />
-            </button>
-
-            {/* Analytics button */}
-            <button
-              onClick={() => setActiveSubView('time')}
-              className="py-1.5 px-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-98"
-              title="Screen Time & Productivity Analytics"
-            >
-              <Activity className="w-3.5 h-3.5 text-slate-300" />
-            </button>
-          </div>
+          {/* Floating Scroll Indicator */}
+          <AnimatePresence>
+            {canScrollDown && (
+              <motion.button
+                initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                onClick={scrollDashboardDown}
+                className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-sky-400/35 text-sky-300 text-[10px] font-semibold shadow-xl shadow-black/80 backdrop-blur-md cursor-pointer group transition-all"
+                title="Scroll down to view more cards"
+              >
+                <ChevronDown className="w-3 h-3 text-sky-400 animate-bounce group-hover:translate-y-0.5 transition-transform" />
+                <span>More cards below</span>
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
       {/* ============================================================== */}
-      {/* 3. MODALS                                                      */}
+      {/* 3. IN-NOTCH MODAL OVERLAYS (Contained cleanly within the Notch) */}
       {/* ============================================================== */}
       {isQuickAppsOpen && (
-        <QuickAppsBarModal onClose={() => setIsQuickAppsOpen(false)} />
+        <div className="absolute inset-0 z-40 bg-slate-950/95 backdrop-blur-2xl flex flex-col overflow-hidden rounded-[24px]">
+          <div className="flex-1 min-h-0 overflow-y-auto notch-dashboard-scroll p-1">
+            <QuickAppsBarModal onClose={() => setIsQuickAppsOpen(false)} />
+          </div>
+        </div>
       )}
       {isProModalOpen && (
-        <AIAgentProModal onClose={() => setIsProModalOpen(false)} />
+        <div className="absolute inset-0 z-40 bg-slate-950/95 backdrop-blur-2xl flex flex-col overflow-hidden rounded-[24px]">
+          <div className="flex-1 min-h-0 overflow-y-auto notch-dashboard-scroll p-1">
+            <AIAgentProModal onClose={() => setIsProModalOpen(false)} />
+          </div>
+        </div>
       )}
       {isStoreModalOpen && (
-        <MicrosoftStoreModal onClose={() => setIsStoreModalOpen(false)} />
+        <div className="absolute inset-0 z-40 bg-slate-950/95 backdrop-blur-2xl flex flex-col overflow-hidden rounded-[24px]">
+          <div className="flex-1 min-h-0 overflow-y-auto notch-dashboard-scroll p-1">
+            <MicrosoftStoreModal onClose={() => setIsStoreModalOpen(false)} />
+          </div>
+        </div>
       )}
       {isVolumeMixerOpen && (
-        <VolumeMixerModal onClose={() => setIsVolumeMixerOpen(false)} />
+        <div className="absolute inset-0 z-40 bg-slate-950/95 backdrop-blur-2xl flex flex-col overflow-hidden rounded-[24px]">
+          <div className="flex-1 min-h-0 overflow-y-auto notch-dashboard-scroll p-1">
+            <VolumeMixerModal onClose={() => setIsVolumeMixerOpen(false)} />
+          </div>
+        </div>
+      )}
+      {isPhoneSyncOpen && (
+        <div className="absolute inset-0 z-40 bg-slate-950/95 backdrop-blur-2xl flex flex-col overflow-hidden rounded-[24px]">
+          <div className="flex-1 min-h-0 overflow-y-auto notch-dashboard-scroll p-1">
+            <PhoneSyncModal onClose={() => setIsPhoneSyncOpen(false)} />
+          </div>
+        </div>
       )}
       {isCalculatorOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md pointer-events-auto">

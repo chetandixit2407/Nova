@@ -17,6 +17,7 @@ import {
 import { soundService } from '../services/soundService';
 import { systemService } from '../services/systemService';
 import { audioEngine } from '../services/audioEngine';
+import { phoneSyncService } from '../services/phoneSyncService';
 
 const DEFAULT_CONFIG: NotchConfig = {
   theme: 'midnight',
@@ -262,6 +263,9 @@ interface NotchContextValue {
   setIsFullscreenMusicOpen: (val: boolean) => void;
   setPlacement: (placement: NotchPlacement) => void;
   setDimensions: (width: number, height: number) => void;
+  eyesOnlyMode: boolean;
+  setEyesOnlyMode: (val: boolean) => void;
+  toggleEyesOnlyMode: () => void;
 }
 
 const NotchContext = createContext<NotchContextValue | null>(null);
@@ -420,6 +424,15 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isDetached, setIsDetached] = useState<boolean>(config.isDetached || false);
   const [dropShelfFiles, setDropShelfFiles] = useState<DropShelfFile[]>([]);
   const [isFullscreenMusicOpen, setIsFullscreenMusicOpen] = useState<boolean>(false);
+  const [eyesOnlyMode, setEyesOnlyMode] = useState<boolean>(false);
+
+  const toggleEyesOnlyMode = useCallback(() => {
+    setEyesOnlyMode((prev) => {
+      const next = !prev;
+      soundService.playPop();
+      return next;
+    });
+  }, []);
 
   const toggleInvisibilityCloak = useCallback(() => {
     setInvisibilityCloakActive((prev) => {
@@ -761,6 +774,30 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const clearAllToasts = useCallback(() => {
     setToasts([]);
   }, []);
+
+  // Real-time phone notification subscription
+  useEffect(() => {
+    const unsub = phoneSyncService.onToast((toast) => {
+      if (dndEnabled) return;
+      setToasts((prev) => [toast, ...prev.filter((t) => t.id !== toast.id)].slice(0, 4));
+      setNotifications((prev) => [
+        {
+          id: toast.id,
+          appName: toast.appName,
+          title: toast.title,
+          message: toast.message,
+          timestamp: toast.timestamp,
+          icon: toast.icon,
+          isRead: false,
+          priority: 'high',
+          animType: toast.animType,
+          sender: toast.sender
+        },
+        ...prev
+      ]);
+    });
+    return unsub;
+  }, [dndEnabled]);
 
   const triggerTestNotification = useCallback(async () => {
     const testTitles = [
@@ -1111,7 +1148,10 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         isFullscreenMusicOpen,
         setIsFullscreenMusicOpen,
         setPlacement,
-        setDimensions
+        setDimensions,
+        eyesOnlyMode,
+        setEyesOnlyMode,
+        toggleEyesOnlyMode
       }}
     >
       {children}

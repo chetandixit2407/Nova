@@ -4,7 +4,7 @@ import { useNotch } from '../../context/NotchContext';
 import { audioEngine } from '../../services/audioEngine';
 
 interface EdgeLightRingProps {
-  borderRadius: number;
+  borderRadius: number | string;
 }
 
 export const EdgeLightRing: React.FC<EdgeLightRingProps> = ({ borderRadius }) => {

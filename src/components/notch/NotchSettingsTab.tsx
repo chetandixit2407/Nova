@@ -582,7 +582,7 @@ export const NotchSettingsTab: React.FC = () => {
                 Show Live Activities in Notch
               </span>
               <span className="text-[10px] text-slate-400 leading-tight mt-0.5">
-                Displays active music, downloads & timers in notch. When off, notch stays strictly Eyes-Only.
+                Displays active music, downloads & timers in notch when collapsed.
               </span>
             </div>
             <input

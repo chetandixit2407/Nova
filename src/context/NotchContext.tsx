@@ -273,9 +273,6 @@ interface NotchContextValue {
   setIsFullscreenMusicOpen: (val: boolean) => void;
   setPlacement: (placement: NotchPlacement) => void;
   setDimensions: (width: number, height: number) => void;
-  eyesOnlyMode: boolean;
-  setEyesOnlyMode: (val: boolean) => void;
-  toggleEyesOnlyMode: () => void;
   notchPosition: { x: number; y: number } | null;
   setNotchPosition: (pos: { x: number; y: number } | null) => void;
   resetNotchPosition: () => void;
@@ -460,15 +457,6 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isDetached, setIsDetached] = useState<boolean>(false);
   const [dropShelfFiles, setDropShelfFiles] = useState<DropShelfFile[]>([]);
   const [isFullscreenMusicOpen, setIsFullscreenMusicOpen] = useState<boolean>(false);
-  const [eyesOnlyMode, setEyesOnlyMode] = useState<boolean>(false);
-
-  const toggleEyesOnlyMode = useCallback(() => {
-    setEyesOnlyMode((prev) => {
-      const next = !prev;
-      soundService.playPop();
-      return next;
-    });
-  }, []);
 
   const toggleInvisibilityCloak = useCallback(() => {
     setInvisibilityCloakActive((prev) => {
@@ -1397,9 +1385,6 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         setIsFullscreenMusicOpen,
         setPlacement,
         setDimensions,
-        eyesOnlyMode,
-        setEyesOnlyMode,
-        toggleEyesOnlyMode,
         notchPosition,
         setNotchPosition,
         resetNotchPosition,

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   FolderUp,
+  Folder,
   Share2,
   RefreshCw,
   QrCode,
@@ -159,20 +160,55 @@ export const DropShelfView: React.FC = () => {
               dropShelfFiles.map((file) => (
                 <div
                   key={file.id}
-                  className="min-w-[120px] max-w-[140px] h-[64px] bg-white/5 border border-white/10 rounded-lg p-1.5 flex flex-col justify-between shrink-0"
+                  className="min-w-[130px] max-w-[150px] h-[64px] bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg p-1.5 flex flex-col justify-between shrink-0 group transition-all"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-[9px] text-slate-400 font-mono">
                       {(file.size / 1024).toFixed(0)} KB
                     </span>
-                    <button
-                      onClick={() => removeDropShelfFile(file.id)}
-                      className="text-slate-400 hover:text-rose-400 p-0.5"
-                    >
-                      <X className="w-2.5 h-2.5" />
-                    </button>
+                    <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100">
+                      <button
+                        onClick={() => {
+                          showToast({
+                            appName: 'Drop Shelf',
+                            title: 'Revealing in Explorer',
+                            message: `Opening folder containing "${file.name}"`,
+                            icon: 'Folder',
+                            duration: 1800
+                          });
+                        }}
+                        className="text-slate-400 hover:text-sky-300 p-0.5 cursor-pointer"
+                        title="Reveal in File Explorer"
+                      >
+                        <Folder className="w-2.5 h-2.5" />
+                      </button>
+                      <button
+                        onClick={() => removeDropShelfFile(file.id)}
+                        className="text-slate-400 hover:text-rose-400 p-0.5 cursor-pointer"
+                        title="Remove from Shelf"
+                      >
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
                   </div>
-                  <p className="text-[10px] text-slate-200 truncate font-medium">{file.name}</p>
+                  <div
+                    onClick={() => {
+                      showToast({
+                        appName: 'Drop Shelf',
+                        title: 'Opening File',
+                        message: `Launching "${file.name}" with default app`,
+                        icon: 'FileCheck',
+                        duration: 1800
+                      });
+                    }}
+                    className="cursor-pointer"
+                    title="Click to Open File"
+                  >
+                    <p className="text-[10px] text-slate-200 truncate font-medium group-hover:text-sky-300">
+                      {file.name}
+                    </p>
+                    <span className="text-[8px] text-slate-500 font-mono block">Click to open</span>
+                  </div>
                 </div>
               ))
             )}

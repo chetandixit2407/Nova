@@ -31,7 +31,69 @@ async function startServer() {
   const port = resolvePort();
   const host = '0.0.0.0';
 
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+
+  // In-memory active Wi-Fi pairing session and uploaded file queue
+  interface TransferSession {
+    token: string;
+    pin: string;
+    createdAt: number;
+    files: Array<{ name: string; size: number; type: string; timestamp: number }>;
+  }
+  const activeSessions = new Map<string, TransferSession>();
+
+  // Generate or retrieve current local Wi-Fi pairing token & QR endpoint
+  app.get('/api/transfer/session', (req: Request, res: Response) => {
+    const pin = '9482';
+    const token = 'nova-wifi-' + Buffer.from(Date.now().toString()).toString('base64url').slice(0, 8);
+    activeSessions.set(token, {
+      token,
+      pin,
+      createdAt: Date.now(),
+      files: []
+    });
+    res.json({
+      success: true,
+      token,
+      pin,
+      url: `/upload?token=${token}&pin=${pin}`,
+      expiresIn: 3600
+    });
+  });
+
+  // Phone uploads a file to PC via Wi-Fi browser session
+  app.post('/api/transfer/upload', (req: Request, res: Response) => {
+    try {
+      const { token, pin, fileName, fileBase64, fileSize, fileType } = req.body ?? {};
+      if (!fileName) {
+        return res.status(400).json({ success: false, error: 'File name required' });
+      }
+
+      const session = token ? activeSessions.get(token) : null;
+      if (session) {
+        session.files.push({
+          name: fileName,
+          size: fileSize || 0,
+          type: fileType || 'application/octet-stream',
+          timestamp: Date.now()
+        });
+      }
+
+      res.json({
+        success: true,
+        message: `Received ${fileName} (${((fileSize || 0) / 1024).toFixed(1)} KB) into Drop Shelf`,
+        file: {
+          name: fileName,
+          size: fileSize || 0,
+          type: fileType || 'application/octet-stream',
+          receivedAt: Date.now()
+        }
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Upload failed';
+      res.status(500).json({ success: false, error: message });
+    }
+  });
 
   app.post('/api/launch-app', (req: Request, res: Response) => {
     try {

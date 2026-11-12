@@ -132,9 +132,6 @@ export const NotchExpandedDashboard: React.FC = () => {
     toggleDetached,
     clipboardHistory,
     dropShelfFiles,
-    eyesOnlyMode,
-    toggleEyesOnlyMode,
-    setEyesOnlyMode,
     resetNotchPosition,
     isCustomPositioned,
     activeTab
@@ -267,7 +264,7 @@ export const NotchExpandedDashboard: React.FC = () => {
     const ro = new ResizeObserver(() => checkScrollState());
     ro.observe(el);
     return () => ro.disconnect();
-  }, [checkScrollState, activeSubView, tasks, isLyricsOpen, eyesOnlyMode]);
+  }, [checkScrollState, activeSubView, tasks, isLyricsOpen]);
 
   // Drag-to-scroll implementation
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -376,23 +373,6 @@ export const NotchExpandedDashboard: React.FC = () => {
   const ringRadius = 5.5;
   const ringCircumference = 2 * Math.PI * ringRadius;
   const ringOffset = ringCircumference - (batteryPct / 100) * ringCircumference;
-
-  // =========================================================================
-  // 4. EYES-ONLY MODE: Show ONLY the eye icons. Hide all other elements!
-  // =========================================================================
-  if (eyesOnlyMode) {
-    return (
-      <div
-        onClick={() => toggleEyesOnlyMode()}
-        className="w-full h-full flex flex-col items-center justify-center cursor-pointer select-none relative group bg-transparent"
-        title="Eyes-Only Mode Active • Click anywhere to reveal full dashboard"
-      >
-        <div className="relative">
-          <VayllEye size="lg" interactive={true} />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="w-full h-full text-slate-100 select-none flex flex-col overflow-hidden relative font-sans">
@@ -510,15 +490,6 @@ export const NotchExpandedDashboard: React.FC = () => {
             title="System Activities"
           >
             <Activity className="w-3.5 h-3.5" />
-          </button>
-
-          {/* 9. Eyes-Only Mode Toggle */}
-          <button
-            onClick={() => toggleEyesOnlyMode()}
-            className="p-1 text-slate-400 hover:text-sky-300 transition-colors cursor-pointer"
-            title="Toggle Eyes-Only Mode (Hides all UI, displays only Eyes)"
-          >
-            <Eye className="w-3.5 h-3.5 text-sky-400" />
           </button>
         </div>
 

@@ -84,7 +84,7 @@ export const NotchExpandedHeader: React.FC = () => {
       <div className="flex items-center gap-1.5">
         <button
           onClick={toggleLiveActivities}
-          title={showLiveActivities ? 'Hide Live Activities in Notch (Strict Eyes-Only)' : 'Show Live Activities in Notch'}
+          title={showLiveActivities ? 'Hide Live Activities in Notch' : 'Show Live Activities in Notch'}
           className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
             showLiveActivities
               ? 'bg-cyan-500/15 border-cyan-400/30 text-cyan-300'

@@ -45,7 +45,6 @@ export const NotchRoot: React.FC = () => {
     isFullscreenMusicOpen,
     setIsFullscreenMusicOpen,
     addDropShelfFiles,
-    eyesOnlyMode,
     toggleExpand,
     collapseNotch,
     notchPosition,
@@ -204,37 +203,59 @@ export const NotchRoot: React.FC = () => {
   const shapeConfig = activeToast ? getNotificationShapeConfig(activeToast) : null;
   const isGreetingActive = !isExpanded && !activeCall && !activeToast && activeGreeting.isActive;
 
-  // Display style detection
+  // Primary Display Styles (1. Edge Notch, 2. Floating Pill, 3. Dynamic Bar)
   const isDynamicBar = config.displayStyle === 'dynamic_bar';
   const isEdgeNotch = config.displayStyle === 'edge_notch';
+  const isFloatingPill = !isDynamicBar && !isEdgeNotch;
 
-  // Compact dimensions: expands smoothly when audio or stats are visible
+  // 1. Compact Dimensions:
+  // - Dynamic Bar: spans across entire display width (screenBounds.width)
+  // - Edge Notch: flush against top bezel (width ~180-260px)
+  // - Floating Pill: floating Dynamic Island capsule (width ~150-240px)
   const baseCompactWidth = isDynamicBar
     ? screenBounds.width
+    : isEdgeNotch
+    ? isAudioPlaying || config.closedNotchDisplay === 'cpu_ram' || config.closedNotchDisplay === 'clock_weather'
+      ? Math.max(config.compactWidth || 220, 260)
+      : (config.compactWidth || 190)
     : isAudioPlaying || config.closedNotchDisplay === 'cpu_ram' || config.closedNotchDisplay === 'clock_weather'
-    ? 240
-    : 140;
-  const baseCompactHeight = 36;
-  const responsiveCompactWidth = isDynamicBar ? screenBounds.width : Math.min(baseCompactWidth, screenBounds.width - 24);
+    ? Math.max(config.compactWidth || 200, 240)
+    : (config.compactWidth || 150);
 
-  // Expanded dimensions
+  const baseCompactHeight = isDynamicBar ? 38 : isEdgeNotch ? 38 : (config.compactHeight || 36);
+  const responsiveCompactWidth = isDynamicBar
+    ? screenBounds.width
+    : Math.min(baseCompactWidth, screenBounds.width - 24);
+
+  // 2. Expanded Dimensions:
+  // - Dynamic Bar: expansive central dashboard banner (up to 860px)
+  // - Edge Notch / Floating Pill: structured 620px dual-column dashboard
   const maxAllowedWidth = isDynamicBar
-    ? Math.min(840, screenBounds.width - 24)
-    : Math.min(620, screenBounds.width - 24);
-  const maxAllowedHeight = eyesOnlyMode
-    ? 220
-    : Math.min(460, screenBounds.height - 24);
+    ? Math.min(860, screenBounds.width)
+    : Math.min(config.expandedWidth || 620, screenBounds.width - 24);
+
+  const maxAllowedHeight = Math.min(460, screenBounds.height - 24);
 
   const targetWidth = isSlimLine ? 220 : isExpanded ? maxAllowedWidth : responsiveCompactWidth;
   const targetHeight = isSlimLine ? 4 : isExpanded ? maxAllowedHeight : baseCompactHeight;
 
+  // 3. Corner Radius according to display style:
+  // - Edge Notch: 0 top corners (seamlessly fused to top screen bezel), rounded bottom corners
+  // - Floating Pill: uniform rounded capsule (20px compact, 24px expanded)
+  // - Dynamic Bar: 0 radius when compact (edge-to-edge bar), rounded when expanded into dashboard
   const targetCornerRadius = isSlimLine
-    ? 2
-    : isDynamicBar && !isExpanded
-    ? 0
+    ? '2px'
+    : isDynamicBar
+    ? isExpanded
+      ? '0 0 24px 24px'
+      : '0px'
     : isEdgeNotch
-    ? isExpanded ? 24 : 16
-    : isExpanded ? 24 : 18;
+    ? isExpanded
+      ? '0 0 28px 28px'
+      : '0 0 20px 20px'
+    : isExpanded
+    ? '24px'
+    : `${config.cornerRadius || 20}px`;
 
   const hasFullscreenOverlay = invisibilityCloakActive || isFullscreenMusicOpen || isDetached;
   const hasSecondaryToast = !isExpanded && toasts.length > 1;

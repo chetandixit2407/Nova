@@ -275,16 +275,13 @@ class SystemService {
   /**
    * Fetch Real Live Weather via Open-Meteo API
    */
-  public async fetchWeather(): Promise<WeatherData> {
-    if (this.weatherCache) return this.weatherCache;
-
+  public async fetchWeather(customLocation?: string): Promise<WeatherData> {
     try {
-      // Default coordinates: Seattle / Redmond (Windows Hub) or user geolocation
       let lat = 47.674;
       let lon = -122.121;
-      let locName = 'Redmond, WA';
+      let locName = customLocation || 'Redmond, WA';
 
-      if ('geolocation' in navigator) {
+      if (!customLocation && 'geolocation' in navigator) {
         try {
           const pos = await new Promise<GeolocationPosition>((res, rej) => {
             navigator.geolocation.getCurrentPosition(res, rej, { timeout: 3000 });
@@ -328,11 +325,10 @@ class SystemService {
       this.weatherCache = weather;
       return weather;
     } catch {
-      // Fallback realistic weather
       const fallback: WeatherData = {
         temp: 72,
         condition: 'Clear & Sunny',
-        location: 'Seattle, WA',
+        location: customLocation || 'Seattle, WA',
         high: 76,
         low: 58,
         humidity: 52,
@@ -340,6 +336,10 @@ class SystemService {
       };
       return fallback;
     }
+  }
+
+  public async fetchRealWeather(customLocation?: string): Promise<WeatherData> {
+    return this.fetchWeather(customLocation);
   }
 
   /**

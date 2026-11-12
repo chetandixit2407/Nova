@@ -131,8 +131,8 @@ export const ClipboardProModal: React.FC<ClipboardProModalProps> = ({ onClose })
           <div>
             <h3 className="text-sm font-semibold text-white flex items-center gap-2">
               Clipboard Pro
-              <span className="px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-300 text-[10px] font-mono">
-                PRO
+              <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold">
+                100% FREE UNLOCKED
               </span>
             </h3>
             <p className="text-[11px] text-slate-400">

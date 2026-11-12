@@ -21,8 +21,8 @@ function resolvePort(): number {
       if (!Number.isNaN(parsed) && parsed > 0) return parsed;
     }
   }
-  const envPort = Number(process.env.PORT);
-  if (!Number.isNaN(envPort) && envPort > 0) return envPort;
+  // In AI Studio runtime environment, dev server must strictly listen on port 3000
+  // Do not bind to host process.env.PORT (which is 8080 and causes EADDRINUSE)
   return 3000;
 }
 
@@ -79,7 +79,7 @@ async function startServer() {
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        hmr: process.env.DISABLE_HMR !== 'true',
+        hmr: false,
         watch: process.env.DISABLE_HMR === 'true' ? null : {},
       },
       appType: 'spa',

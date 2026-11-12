@@ -524,14 +524,14 @@ export const NotchExpandedDashboard: React.FC = () => {
 
         {/* Right Side: PRO, Weather, Battery Ring, Pin, Settings, Close */}
         <div className="flex items-center gap-2.5 shrink-0 pl-2">
-          {/* PRO Badge with Bot Icon */}
+          {/* Notchy AI Coding Companion (Claude Code, Codex, Antigravity) */}
           <button
             onClick={() => setIsProModalOpen(true)}
-            className="flex items-center gap-1 text-[11px] font-mono font-bold text-slate-300 hover:text-white transition-colors cursor-pointer"
-            title="AI Agent Pro Features"
+            className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-violet-500/20 hover:bg-violet-500/30 border border-violet-400/30 text-[11px] font-mono font-bold text-violet-300 transition-colors cursor-pointer shadow-sm"
+            title="Notchy AI Coding Companion (Claude Code, Codex, Antigravity)"
           >
-            <Bot className="w-3.5 h-3.5 text-slate-300" />
-            <span>PRO</span>
+            <Bot className="w-3.5 h-3.5 text-violet-400 animate-pulse" />
+            <span>Notchy AI</span>
           </button>
 
           {/* Weather Indicator */}

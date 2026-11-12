@@ -10,6 +10,7 @@ import { InvisibilityCloakOverlay } from './InvisibilityCloakOverlay';
 import { FullscreenMusicModal } from './FullscreenMusicModal';
 import { DetachedNotchWidget } from './DetachedNotchWidget';
 import { EdgeLightRing } from './EdgeLightRing';
+import { FullscreenEdgeLight } from './FullscreenEdgeLight';
 import { getNotificationShapeConfig } from '../../utils/notchShapeHelper';
 import { systemService } from '../../services/systemService';
 import { audioEngine } from '../../services/audioEngine';
@@ -50,7 +51,10 @@ export const NotchRoot: React.FC = () => {
     notchPosition,
     setNotchPosition,
     resetNotchPosition,
-    isCustomPositioned
+    isCustomPositioned,
+    isSlimLine,
+    toggleSlimLine,
+    setSlimLine
   } = useNotch();
 
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
@@ -200,20 +204,37 @@ export const NotchRoot: React.FC = () => {
   const shapeConfig = activeToast ? getNotificationShapeConfig(activeToast) : null;
   const isGreetingActive = !isExpanded && !activeCall && !activeToast && activeGreeting.isActive;
 
-  // Vault-Style Minimal Notch UI:
-  // Collapsed: ONLY two minimal animated eyes in an ultra-clean compact capsule
-  const baseCompactWidth = 118;
-  const baseCompactHeight = 36;
-  const responsiveCompactWidth = Math.min(baseCompactWidth, screenBounds.width - 24);
+  // Display style detection
+  const isDynamicBar = config.displayStyle === 'dynamic_bar';
+  const isEdgeNotch = config.displayStyle === 'edge_notch';
 
-  // Expanded: The complete rich NOVA Dashboard (Media Player, Activities, Controls, Phone Sync, Quick Apps, etc.)
-  const maxAllowedWidth = Math.min(560, screenBounds.width - 24);
+  // Compact dimensions: expands smoothly when audio or stats are visible
+  const baseCompactWidth = isDynamicBar
+    ? screenBounds.width
+    : isAudioPlaying || config.closedNotchDisplay === 'cpu_ram' || config.closedNotchDisplay === 'clock_weather'
+    ? 240
+    : 140;
+  const baseCompactHeight = 36;
+  const responsiveCompactWidth = isDynamicBar ? screenBounds.width : Math.min(baseCompactWidth, screenBounds.width - 24);
+
+  // Expanded dimensions
+  const maxAllowedWidth = isDynamicBar
+    ? Math.min(840, screenBounds.width - 24)
+    : Math.min(620, screenBounds.width - 24);
   const maxAllowedHeight = eyesOnlyMode
     ? 220
-    : Math.min(340, screenBounds.height - 24);
+    : Math.min(460, screenBounds.height - 24);
 
-  const targetWidth = isExpanded ? maxAllowedWidth : responsiveCompactWidth;
-  const targetHeight = isExpanded ? maxAllowedHeight : baseCompactHeight;
+  const targetWidth = isSlimLine ? 220 : isExpanded ? maxAllowedWidth : responsiveCompactWidth;
+  const targetHeight = isSlimLine ? 4 : isExpanded ? maxAllowedHeight : baseCompactHeight;
+
+  const targetCornerRadius = isSlimLine
+    ? 2
+    : isDynamicBar && !isExpanded
+    ? 0
+    : isEdgeNotch
+    ? isExpanded ? 24 : 16
+    : isExpanded ? 24 : 18;
 
   const hasFullscreenOverlay = invisibilityCloakActive || isFullscreenMusicOpen || isDetached;
   const hasSecondaryToast = !isExpanded && toasts.length > 1;
@@ -227,8 +248,6 @@ export const NotchRoot: React.FC = () => {
       fullscreen: hasFullscreenOverlay
     });
   }, [isExpanded, targetWidth, targetHeight, hasFullscreenOverlay, hasSecondaryToast]);
-
-  const targetCornerRadius = isExpanded ? 24 : 18;
 
   // Theme styling (Including all 5 Pro Appearance Themes)
   const getThemeStyles = () => {
@@ -473,8 +492,22 @@ export const NotchRoot: React.FC = () => {
       };
 
   // Screen bounds clamping and free positioning calculation
-  const defaultTop = config.topOffset || 12;
-  const defaultLeft = Math.max(8, Math.round((screenBounds.width - targetWidth) / 2));
+  let defaultTop = config.topOffset || 8;
+  if (isEdgeNotch || isDynamicBar || isSlimLine) {
+    defaultTop = 0;
+  }
+  let defaultLeft = Math.max(0, Math.round((screenBounds.width - targetWidth) / 2));
+  if (config.placement === 'top-left') {
+    defaultLeft = 24;
+  } else if (config.placement === 'top-right') {
+    defaultLeft = Math.max(24, screenBounds.width - targetWidth - 24);
+  } else if (config.placement === 'left') {
+    defaultLeft = 0;
+    defaultTop = Math.max(24, Math.round((screenBounds.height - targetHeight) / 2));
+  } else if (config.placement === 'right') {
+    defaultLeft = Math.max(0, screenBounds.width - targetWidth);
+    defaultTop = Math.max(24, Math.round((screenBounds.height - targetHeight) / 2));
+  }
 
   const currentLeft = notchPosition ? notchPosition.x : defaultLeft;
   const currentTop = notchPosition ? notchPosition.y : defaultTop;
@@ -609,6 +642,9 @@ export const NotchRoot: React.FC = () => {
 
   return (
     <>
+      {/* 0. Fullscreen Perimeter Edge Lighting */}
+      <FullscreenEdgeLight />
+
       {/* 1. Invisibility Cloak Fullscreen Privacy Layer */}
       <InvisibilityCloakOverlay
         isActive={invisibilityCloakActive}
@@ -646,7 +682,25 @@ export const NotchRoot: React.FC = () => {
           onMouseMove={handlePointerShake}
           className={`pointer-events-auto p-1.5 -m-1.5 ${isDraggingNow ? 'cursor-grabbing' : 'cursor-default'}`}
         >
-          {isDetached ? (
+          {isSlimLine ? (
+            /* Slim Line Edge State (double-click to restore) */
+            <motion.div
+              onDoubleClick={() => setSlimLine(false)}
+              onClick={() => setSlimLine(false)}
+              whileHover={{ scaleY: 2.2, filter: 'brightness(1.5)' }}
+              animate={{
+                width: 220,
+                height: 4,
+                borderRadius: 2
+              }}
+              style={{
+                background: 'linear-gradient(90deg, transparent, #38bdf8, #818cf8, transparent)',
+                boxShadow: '0 0 14px #38bdf8, 0 0 4px #ffffff'
+              }}
+              className="cursor-pointer transition-all duration-200"
+              title="NOVA Slim Edge Line • Double-click or click to restore Smart Notch"
+            />
+          ) : isDetached ? (
             /* Subtle Re-dock Capsule when Detached */
             <motion.button
               onClick={() => toggleDetached()}

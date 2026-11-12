@@ -13,6 +13,26 @@ export type NotchTheme =
 
 export type NotchPlacement = 'top-center' | 'top-left' | 'top-right' | 'left' | 'right';
 
+export type NotchDisplayStyle = 'edge_notch' | 'floating_pill' | 'dynamic_bar';
+
+export type ClosedNotchDisplay = 'auto' | 'eyes' | 'battery' | 'cpu_ram' | 'music' | 'clock_weather';
+
+export interface PrivacyIndicatorsState {
+  cameraActive: boolean;
+  cameraApp?: string;
+  microphoneActive: boolean;
+  microphoneApp?: string;
+}
+
+export interface FocusTask {
+  id: string;
+  title: string;
+  completed: boolean;
+  priority: 'low' | 'medium' | 'high';
+  createdAt: number;
+  pomodoroSessionsSpent: number;
+}
+
 export type NotchTab = 
   | 'activities'
   | 'media'
@@ -23,13 +43,15 @@ export type NotchTab =
 
 export interface NotchConfig {
   theme: NotchTheme;
+  displayStyle: NotchDisplayStyle; // 1. Edge Notch, 2. Floating Pill, 3. Dynamic Bar
+  closedNotchDisplay: ClosedNotchDisplay; // Closed notch content customization
   compactWidth: number;       // default e.g. 210px (adjustable 100-340px)
   compactHeight: number;      // default e.g. 38px (adjustable 28-72px)
   expandedWidth: number;      // default e.g. 700px
   cornerRadius: number;       // default e.g. 24px
   topOffset: number;          // default e.g. 8px
   placement: NotchPlacement;  // flexible placement
-  isDetached: boolean;        // Pro: Detached floating desktop screen widget
+  isDetached: boolean;        // Detached floating desktop screen widget
   opacity: number;            // 0.6 to 1.0
   blur: number;               // 8 to 40px
   glowIntensity: number;      // 0 to 100%
@@ -40,6 +62,11 @@ export interface NotchConfig {
   soundVolume: number;        // 0 to 1
   animationSpeed: 'snappy' | 'fluid' | 'gentle';
   notchPreset: 'custom' | 'dynamic_classic' | 'windows_fluent' | 'cyber_stealth' | 'compact_dot';
+  edgeLightEnabled: boolean;
+  edgeLightBrightness: number; // 10 to 100%
+  edgeLightThickness: number;  // 4 to 32px
+  edgeLightColor: string;      // e.g. '#ffffff' or preset hex
+  edgeLightEffect: 'solid' | 'breathe' | 'rgb_rainbow' | 'camera_auto';
 }
 
 export interface LiveTask {

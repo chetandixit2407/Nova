@@ -23,7 +23,14 @@ import {
   Play,
   Zap,
   Check,
-  Edit2
+  Edit2,
+  Camera,
+  Mic,
+  MapPin,
+  Battery,
+  Cpu,
+  Layers,
+  Radio
 } from 'lucide-react';
 import { useNotch } from '../../context/NotchContext';
 import {
@@ -71,7 +78,18 @@ export const NotchSettingsTab: React.FC = () => {
     wallpaperIndex,
     setWallpaperIndex,
     showLiveActivities,
-    toggleLiveActivities
+    toggleLiveActivities,
+    isPrivacyCameraActive,
+    isPrivacyMicrophoneActive,
+    togglePrivacyCamera,
+    togglePrivacyMicrophone,
+    privacyCameraApp,
+    privacyMicrophoneApp,
+    customLocation,
+    setCustomLocation,
+    refreshWeather,
+    toggleSlimLine,
+    isSlimLine
   } = useNotch();
 
   const presets: { id: NotchConfig['notchPreset']; name: string; desc: string }[] = [
@@ -81,12 +99,12 @@ export const NotchSettingsTab: React.FC = () => {
     { id: 'compact_dot', name: 'OLED Minimal', desc: 'Ultra compact pure black minimal profile' }
   ];
 
-  const themes: { id: NotchTheme; label: string; color: string; isPro?: boolean }[] = [
-    { id: 'liquid-titanium', label: 'Liquid Titanium', color: '#94a3b8', isPro: true },
-    { id: 'supernova-horizon', label: 'Supernova Horizon', color: '#f59e0b', isPro: true },
-    { id: 'cyber-matrix-3d', label: 'Cyber Matrix 3D', color: '#10b981', isPro: true },
-    { id: 'celestial-orrery', label: 'Celestial Orrery', color: '#6366f1', isPro: true },
-    { id: 'prism-core', label: 'Prism Core', color: '#ec4899', isPro: true },
+  const themes: { id: NotchTheme; label: string; color: string }[] = [
+    { id: 'liquid-titanium', label: 'Liquid Titanium', color: '#94a3b8' },
+    { id: 'supernova-horizon', label: 'Supernova Horizon', color: '#f59e0b' },
+    { id: 'cyber-matrix-3d', label: 'Cyber Matrix 3D', color: '#10b981' },
+    { id: 'celestial-orrery', label: 'Celestial Orrery', color: '#6366f1' },
+    { id: 'prism-core', label: 'Prism Core', color: '#ec4899' },
     { id: 'midnight', label: 'Midnight Obsidian', color: '#090d16' },
     { id: 'windows-mica', label: 'Windows Mica', color: '#181b2a' },
     { id: 'cyber-glow', label: 'Cyber Glow', color: '#051b14' },
@@ -96,44 +114,306 @@ export const NotchSettingsTab: React.FC = () => {
   ];
 
   const glowSwatches = ['#38bdf8', '#818cf8', '#10b981', '#f43f5e', '#f59e0b', '#ffffff'];
+  const edgeLightSwatches = ['#ffffff', '#ffd8a8', '#fbcfe8', '#f59e0b', '#10b981', '#38bdf8'];
+
+  const [locationInput, setLocationInput] = useState<string>(customLocation);
 
   return (
     <div className="space-y-4">
-      {/* 1-Click Presets */}
-      <div>
-        <div className="text-xs font-bold text-white mb-2 flex items-center gap-1.5">
-          <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-          <span>Quick Appearance Presets</span>
+      {/* 1. Three Display Styles (Section 2) */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
+        <div className="text-xs font-semibold text-slate-200 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Layers className="w-3.5 h-3.5 text-sky-400" />
+            Display Style (Three Styles • 100% Free)
+          </span>
+          <span className="text-[10px] text-emerald-400 font-mono font-bold">ALL UNLOCKED</span>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          {presets.map((p) => {
-            const isSelected = config.notchPreset === p.id;
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          {[
+            { id: 'edge_notch', name: 'Edge Notch', desc: 'Flush against screen bezel with curved bottom' },
+            { id: 'floating_pill', name: 'Floating Pill', desc: 'Detached floating Dynamic Island capsule' },
+            { id: 'dynamic_bar', name: 'Dynamic Bar', desc: 'Full-width top bar spanning across entire display' }
+          ].map((style) => {
+            const isSelected = (config.displayStyle || 'floating_pill') === style.id;
             return (
               <button
-                key={p.id}
-                onClick={() => applyPreset(p.id)}
+                key={style.id}
+                onClick={() => updateConfig({ displayStyle: style.id as any })}
                 className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-sky-500/20 border-sky-400 text-white shadow-[0_0_12px_rgba(56,189,248,0.2)]'
-                    : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                    ? 'bg-sky-500/20 border-sky-400 text-white shadow-[0_0_12px_rgba(56,189,248,0.25)]'
+                    : 'bg-white/[0.02] border-white/10 text-slate-300 hover:bg-white/5'
                 }`}
               >
-                <div className="text-xs font-bold">{p.name}</div>
-                <div className="text-[10px] text-slate-400 mt-0.5 leading-snug">{p.desc}</div>
+                <div className="text-xs font-bold flex items-center justify-between">
+                  <span>{style.name}</span>
+                  {isSelected && <span className="w-2 h-2 rounded-full bg-sky-400 animate-pulse" />}
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5 leading-snug">{style.desc}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Double Click Slim Line Quick Action */}
+        <div className="flex items-center justify-between pt-2 border-t border-white/5 text-xs text-slate-300">
+          <div className="flex flex-col pr-2">
+            <span className="font-semibold text-white">Double-Click Slim Line Action</span>
+            <span className="text-[10px] text-slate-400">
+              Double-click the notch or pill anytime to shrink it to a 3px edge line, and double-click the line to bring it back.
+            </span>
+          </div>
+          <button
+            onClick={toggleSlimLine}
+            className="px-3 py-1 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/40 text-xs font-medium text-sky-200 transition shrink-0 cursor-pointer"
+          >
+            {isSlimLine ? 'Restore Notch' : 'Shrink to Line'}
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Closed-Notch Information Customizer (Section 4) */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2">
+        <div className="text-xs font-semibold text-slate-200 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Activity className="w-3.5 h-3.5 text-emerald-400" />
+            Closed Notch Display (Customized Status)
+          </span>
+          <span className="text-[10px] text-slate-400">Section 4</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          {[
+            { id: 'auto', name: 'Smart Auto', icon: Sparkles, desc: 'Contextual live activity' },
+            { id: 'battery', name: 'Laptop Battery', icon: Battery, desc: 'Battery & charging' },
+            { id: 'cpu_ram', name: 'Desktop CPU/RAM', icon: Cpu, desc: 'Telemetry meters' },
+            { id: 'clock_weather', name: 'Clock & Weather', icon: Sun, desc: 'Time & temperature' },
+            { id: 'eyes', name: 'Minimal Eyes', icon: Eye, desc: 'Vault companion' }
+          ].map((mode) => {
+            const isSelected = (config.closedNotchDisplay || 'auto') === mode.id;
+            const Icon = mode.icon;
+            return (
+              <button
+                key={mode.id}
+                onClick={() => updateConfig({ closedNotchDisplay: mode.id as any })}
+                className={`p-2 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center gap-1 ${
+                  isSelected
+                    ? 'bg-emerald-500/20 border-emerald-400 text-white'
+                    : 'bg-white/[0.02] border-white/10 text-slate-400 hover:text-white'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-emerald-400' : 'text-slate-400'}`} />
+                <span className="text-[11px] font-bold">{mode.name}</span>
+                <span className="text-[9px] text-slate-400">{mode.desc}</span>
               </button>
             );
           })}
         </div>
       </div>
 
-      {/* Theme & Glow Swatches */}
+      {/* 3. Fullscreen Perimeter Edge Light (Section 9) */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-pink-500/20 border border-pink-400/30 flex items-center justify-center text-pink-400">
+              <Sun className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-white flex items-center gap-2">
+                <span>Fullscreen Edge Lighting</span>
+                <span className="px-1.5 py-0.2 rounded bg-pink-500/20 text-pink-300 text-[9px] font-mono font-bold">
+                  PRO FEATURE FREE
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-400">
+                Bright border band around your screen to light your face on video calls and calls
+              </div>
+            </div>
+          </div>
+
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input
+              type="checkbox"
+              checked={config.edgeLightEnabled || false}
+              onChange={(e) => updateConfig({ edgeLightEnabled: e.target.checked })}
+              className="sr-only peer"
+            />
+            <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-pink-500" />
+          </label>
+        </div>
+
+        {/* Controls when enabled */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-white/10 text-xs">
+          {/* Brightness */}
+          <div>
+            <div className="flex justify-between text-slate-400 mb-1">
+              <span>Brightness</span>
+              <span className="font-mono text-white">{config.edgeLightBrightness || 85}%</span>
+            </div>
+            <input
+              type="range"
+              min={10}
+              max={100}
+              value={config.edgeLightBrightness || 85}
+              onChange={(e) => updateConfig({ edgeLightBrightness: parseInt(e.target.value) })}
+              className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-pink-400"
+            />
+          </div>
+
+          {/* Border Thickness */}
+          <div>
+            <div className="flex justify-between text-slate-400 mb-1">
+              <span>Glow Thickness</span>
+              <span className="font-mono text-white">{config.edgeLightThickness || 14}px</span>
+            </div>
+            <input
+              type="range"
+              min={4}
+              max={32}
+              value={config.edgeLightThickness || 14}
+              onChange={(e) => updateConfig({ edgeLightThickness: parseInt(e.target.value) })}
+              className="w-full h-1.5 bg-white/10 rounded-lg appearance-none cursor-pointer accent-pink-400"
+            />
+          </div>
+
+          {/* Effect Selector */}
+          <div>
+            <div className="text-slate-400 mb-1">Lighting Mode</div>
+            <select
+              value={config.edgeLightEffect || 'solid'}
+              onChange={(e) => updateConfig({ edgeLightEffect: e.target.value as any })}
+              className="w-full py-1 px-2 rounded-lg bg-black/60 border border-white/15 text-xs text-white focus:outline-none focus:border-pink-400"
+            >
+              <option value="solid">Solid Studio Glow</option>
+              <option value="breathe">Breathing Ambient Pulse</option>
+              <option value="rgb_rainbow">RGB Rainbow Wave</option>
+              <option value="camera_auto">Auto Video Call Mode</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Color Presets */}
+        <div className="flex items-center gap-2 pt-1">
+          <span className="text-[11px] text-slate-400">Color Presets:</span>
+          {edgeLightSwatches.map((c) => (
+            <button
+              key={c}
+              onClick={() => updateConfig({ edgeLightColor: c })}
+              className={`w-5 h-5 rounded-full border transition cursor-pointer ${
+                config.edgeLightColor === c ? 'scale-125 border-white shadow-[0_0_8px_#ffffff]' : 'border-transparent'
+              }`}
+              style={{ backgroundColor: c }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* 4. Privacy Indicators Real Sensor & Test Controls (Section 7) */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-3 space-y-2.5">
+        <div className="flex items-center justify-between text-xs font-semibold text-slate-200">
+          <span className="flex items-center gap-1.5">
+            <Radio className="w-3.5 h-3.5 text-emerald-400" />
+            Windows Privacy Indicators (Section 7)
+          </span>
+          <span className="text-[10px] text-slate-400 font-mono">Green = Camera • Orange = Mic</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+          {/* Camera Indicator Tile */}
+          <div className="p-2.5 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span
+                className={`w-3 h-3 rounded-full ${
+                  isPrivacyCameraActive
+                    ? 'bg-emerald-400 shadow-[0_0_10px_#34d399] animate-pulse'
+                    : 'bg-slate-700'
+                }`}
+              />
+              <div>
+                <div className="font-semibold text-white">Camera Indicator</div>
+                <div className="text-[10px] text-slate-400">
+                  {isPrivacyCameraActive ? `Active: ${privacyCameraApp}` : 'Camera Idle'}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => togglePrivacyCamera()}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition cursor-pointer ${
+                isPrivacyCameraActive
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'
+              }`}
+            >
+              {isPrivacyCameraActive ? 'Turn Off' : 'Test Active'}
+            </button>
+          </div>
+
+          {/* Microphone Indicator Tile */}
+          <div className="p-2.5 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span
+                className={`w-3 h-3 rounded-full ${
+                  isPrivacyMicrophoneActive
+                    ? 'bg-amber-400 shadow-[0_0_10px_#fbbf24] animate-pulse'
+                    : 'bg-slate-700'
+                }`}
+              />
+              <div>
+                <div className="font-semibold text-white">Microphone Indicator</div>
+                <div className="text-[10px] text-slate-400">
+                  {isPrivacyMicrophoneActive ? `Active: ${privacyMicrophoneApp}` : 'Microphone Idle'}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => togglePrivacyMicrophone()}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition cursor-pointer ${
+                isPrivacyMicrophoneActive
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                  : 'bg-white/5 text-slate-400 border-white/10 hover:text-white'
+              }`}
+            >
+              {isPrivacyMicrophoneActive ? 'Turn Off' : 'Test Active'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Custom Weather Location (Section 5) */}
+      <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+        <div>
+          <div className="font-semibold text-white flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5 text-amber-400" />
+            <span>Weather Forecast Location (Open-Meteo Real Telemetry)</span>
+          </div>
+          <div className="text-[10px] text-slate-400">
+            Set your custom city or geographic coordinate location
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 w-full md:w-auto">
+          <input
+            type="text"
+            value={locationInput}
+            onChange={(e) => setLocationInput(e.target.value)}
+            placeholder="e.g. London, Seattle, Tokyo"
+            className="px-2.5 py-1.5 rounded-lg bg-black/60 border border-white/15 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 w-44"
+          />
+          <button
+            onClick={() => setCustomLocation(locationInput)}
+            className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-semibold text-amber-200 transition cursor-pointer shrink-0"
+          >
+            Update
+          </button>
+        </div>
+      </div>
+
+      {/* 6. Appearance Themes (All 11 Unlocked & Free) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {/* Themes */}
         <div className="bg-white/5 border border-white/10 rounded-xl p-3">
           <label className="text-xs font-semibold text-slate-200 block mb-2 flex items-center justify-between">
             <span className="flex items-center gap-1.5">
               <Palette className="w-3.5 h-3.5 text-indigo-400" />
-              Appearance Themes (5 Pro Effects)
+              Appearance Themes (All 11 Unlocked & Free)
             </span>
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1">
@@ -153,7 +433,6 @@ export const NotchSettingsTab: React.FC = () => {
                 />
                 <span className="truncate text-[11px] font-medium">
                   {t.label}
-                  {t.isPro && <span className="ml-1 text-[9px] text-sky-400 font-mono">PRO</span>}
                 </span>
               </button>
             ))}

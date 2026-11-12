@@ -12,15 +12,20 @@ import {
   HoveredCardInfo,
   FlyingTextItem,
   NotchPlacement,
-  DropShelfFile
+  DropShelfFile,
+  FocusTask,
+  PrivacyIndicatorsState
 } from '../types';
 import { soundService } from '../services/soundService';
 import { systemService } from '../services/systemService';
 import { audioEngine } from '../services/audioEngine';
 import { phoneSyncService } from '../services/phoneSyncService';
+import { privacyIndicatorService } from '../services/privacyIndicatorService';
 
 const DEFAULT_CONFIG: NotchConfig = {
   theme: 'midnight',
+  displayStyle: 'floating_pill',
+  closedNotchDisplay: 'auto',
   compactWidth: 340,
   compactHeight: 38,
   expandedWidth: 620,
@@ -37,7 +42,12 @@ const DEFAULT_CONFIG: NotchConfig = {
   soundEnabled: true,
   soundVolume: 0.5,
   animationSpeed: 'fluid',
-  notchPreset: 'dynamic_classic'
+  notchPreset: 'dynamic_classic',
+  edgeLightEnabled: false,
+  edgeLightBrightness: 85,
+  edgeLightThickness: 14,
+  edgeLightColor: '#ffffff',
+  edgeLightEffect: 'solid'
 };
 
 const DEFAULT_AI_TOOLS: AITool[] = [
@@ -270,6 +280,29 @@ interface NotchContextValue {
   setNotchPosition: (pos: { x: number; y: number } | null) => void;
   resetNotchPosition: () => void;
   isCustomPositioned: boolean;
+  // Slim Line Feature (double click to shrink to slim line)
+  isSlimLine: boolean;
+  toggleSlimLine: () => void;
+  setSlimLine: (val: boolean) => void;
+  // Privacy Indicators (Camera Green & Microphone Orange)
+  isPrivacyCameraActive: boolean;
+  isPrivacyMicrophoneActive: boolean;
+  privacyCameraApp: string;
+  privacyMicrophoneApp: string;
+  togglePrivacyCamera: (active?: boolean, app?: string) => void;
+  togglePrivacyMicrophone: (active?: boolean, app?: string) => void;
+  // Focus Tasks
+  focusTasks: FocusTask[];
+  addFocusTask: (title: string, priority?: 'low' | 'medium' | 'high') => void;
+  toggleFocusTask: (id: string) => void;
+  deleteFocusTask: (id: string) => void;
+  reorderFocusTasks: (fromIdx: number, toIdx: number) => void;
+  pomodoroWorkDuration: number;
+  pomodoroBreakDuration: number;
+  setPomodoroWorkDuration: (mins: number) => void;
+  setPomodoroBreakDuration: (mins: number) => void;
+  customLocation: string;
+  setCustomLocation: (city: string) => void;
 }
 
 const NotchContext = createContext<NotchContextValue | null>(null);
@@ -517,6 +550,141 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [invisibilityCloakActive, toggleInvisibilityCloak]);
+
+  // Slim Line Feature (double-click notch or pill to shrink to a slim line at the screen edge, and double-click to bring it back)
+  const [isSlimLine, setIsSlimLine] = useState<boolean>(false);
+
+  const toggleSlimLine = useCallback(() => {
+    setIsSlimLine((prev) => {
+      const next = !prev;
+      soundService.play(next ? 'notch_collapse' : 'notch_expand');
+      return next;
+    });
+  }, []);
+
+  const setSlimLine = useCallback((val: boolean) => {
+    setIsSlimLine(val);
+    soundService.play(val ? 'notch_collapse' : 'notch_expand');
+  }, []);
+
+  // Privacy Indicators (Camera Green & Microphone Orange)
+  const [privacyState, setPrivacyState] = useState(privacyIndicatorService.getState());
+
+  useEffect(() => {
+    const unsub = privacyIndicatorService.subscribe((next) => {
+      setPrivacyState(next);
+    });
+    return unsub;
+  }, []);
+
+  const togglePrivacyCamera = useCallback((active?: boolean, app?: string) => {
+    privacyIndicatorService.toggleCamera(active, app);
+  }, []);
+
+  const togglePrivacyMicrophone = useCallback((active?: boolean, app?: string) => {
+    privacyIndicatorService.toggleMicrophone(active, app);
+  }, []);
+
+  // Focus & Productivity Tasks
+  const [focusTasks, setFocusTasks] = useState<FocusTask[]>(() => {
+    try {
+      const saved = localStorage.getItem('nova_focus_tasks');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [
+      { id: 'task-1', title: 'Complete Smart Notch Free Edition architecture', completed: true, priority: 'high', createdAt: Date.now() - 3600000, pomodoroSessionsSpent: 2 },
+      { id: 'task-2', title: 'Test synchronized lyrics & audio visualizers', completed: false, priority: 'high', createdAt: Date.now() - 1800000, pomodoroSessionsSpent: 1 },
+      { id: 'task-3', title: 'Verify camera & microphone privacy indicators', completed: false, priority: 'medium', createdAt: Date.now() - 900000, pomodoroSessionsSpent: 0 }
+    ];
+  });
+
+  const addFocusTask = useCallback((title: string, priority: 'low' | 'medium' | 'high' = 'medium') => {
+    const newTask: FocusTask = {
+      id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      title,
+      completed: false,
+      priority,
+      createdAt: Date.now(),
+      pomodoroSessionsSpent: 0
+    };
+    setFocusTasks((prev) => {
+      const next = [newTask, ...prev];
+      localStorage.setItem('nova_focus_tasks', JSON.stringify(next));
+      return next;
+    });
+    soundService.play('button_click');
+  }, []);
+
+  const toggleFocusTask = useCallback((id: string) => {
+    setFocusTasks((prev) => {
+      const next = prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t));
+      localStorage.setItem('nova_focus_tasks', JSON.stringify(next));
+      return next;
+    });
+    soundService.play('toggle');
+  }, []);
+
+  const deleteFocusTask = useCallback((id: string) => {
+    setFocusTasks((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      localStorage.setItem('nova_focus_tasks', JSON.stringify(next));
+      return next;
+    });
+    soundService.play('button_click');
+  }, []);
+
+  const reorderFocusTasks = useCallback((fromIdx: number, toIdx: number) => {
+    setFocusTasks((prev) => {
+      if (fromIdx < 0 || fromIdx >= prev.length || toIdx < 0 || toIdx >= prev.length) return prev;
+      const copy = [...prev];
+      const [moved] = copy.splice(fromIdx, 1);
+      copy.splice(toIdx, 0, moved);
+      localStorage.setItem('nova_focus_tasks', JSON.stringify(copy));
+      return copy;
+    });
+    soundService.playTick();
+  }, []);
+
+  // Custom durations for Pomodoro
+  const [pomodoroWorkDuration, setPomodoroWorkDurationState] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('nova_pomodoro_work_mins');
+      if (saved) return Number(saved) || 25;
+    } catch {}
+    return 25;
+  });
+
+  const [pomodoroBreakDuration, setPomodoroBreakDurationState] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('nova_pomodoro_break_mins');
+      if (saved) return Number(saved) || 5;
+    } catch {}
+    return 5;
+  });
+
+  const setPomodoroWorkDuration = useCallback((mins: number) => {
+    const val = Math.max(1, Math.min(120, mins));
+    setPomodoroWorkDurationState(val);
+    localStorage.setItem('nova_pomodoro_work_mins', String(val));
+    setPomodoroSeconds(val * 60);
+  }, []);
+
+  const setPomodoroBreakDuration = useCallback((mins: number) => {
+    const val = Math.max(1, Math.min(60, mins));
+    setPomodoroBreakDurationState(val);
+    localStorage.setItem('nova_pomodoro_break_mins', String(val));
+  }, []);
+
+  // Custom Weather Location
+  const [customLocation, setCustomLocationState] = useState<string>(() => {
+    return localStorage.getItem('nova_weather_location') || 'Seattle, WA';
+  });
+
+  const setCustomLocation = useCallback((city: string) => {
+    setCustomLocationState(city);
+    localStorage.setItem('nova_weather_location', city);
+    systemService.fetchRealWeather(city).then((w: WeatherData) => setWeather(w)).catch(() => {});
+  }, []);
 
   const resetConfig = useCallback(() => {
     setConfig(DEFAULT_CONFIG);
@@ -1235,7 +1403,30 @@ export const NotchProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         notchPosition,
         setNotchPosition,
         resetNotchPosition,
-        isCustomPositioned: notchPosition !== null
+        isCustomPositioned: notchPosition !== null,
+        // Slim Line
+        isSlimLine,
+        toggleSlimLine,
+        setSlimLine,
+        // Privacy Indicators
+        isPrivacyCameraActive: privacyState.cameraActive,
+        isPrivacyMicrophoneActive: privacyState.microphoneActive,
+        privacyCameraApp: privacyState.cameraApp,
+        privacyMicrophoneApp: privacyState.microphoneApp,
+        togglePrivacyCamera,
+        togglePrivacyMicrophone,
+        // Focus Tasks
+        focusTasks,
+        addFocusTask,
+        toggleFocusTask,
+        deleteFocusTask,
+        reorderFocusTasks,
+        pomodoroWorkDuration,
+        pomodoroBreakDuration,
+        setPomodoroWorkDuration,
+        setPomodoroBreakDuration,
+        customLocation,
+        setCustomLocation
       }}
     >
       {children}
